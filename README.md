@@ -4,10 +4,19 @@
 
 Native Android-App (Kotlin, Jetpack Compose, Room) zur Erfassung vorhandener Parfums inkl. Duftpyramide, mit Foto-basierter Erkennung neuer Parfums über die Gemini API, optionalem Barcode-Scan, getrennter Wunschliste und Self-Update über GitHub Releases. Kein eigenes Backend — alles läuft lokal auf dem Gerät.
 
+## Download
+
+**[Neueste Stable-Version herunterladen](https://github.com/Daywalker91/Parfumsammlung-App/releases/latest)** (signierte APK, GitHub Release)
+
+Alle Releases inkl. Experimental-Pre-Releases: [Releases-Seite](https://github.com/Daywalker91/Parfumsammlung-App/releases)
+
+> Der Link wird erst nach dem ersten CI-Release funktionieren (siehe `ROADMAP.md`, Phase 5) — bis dahin per `./gradlew assembleDebug` selbst bauen, siehe unten.
+
 ## Dokumentation
 
 - [Parfum-App_Plan.md](Parfum-App_Plan.md) — Hauptkonzept: Datenmodell, Gemini-Integration, Self-Update-Mechanismus, Entwickler-Optionen, Build-Voraussetzungen
 - [Parfum-App_CICD_Plan.md](Parfum-App_CICD_Plan.md) — CI/CD-Pipeline (GitHub Actions): Branch-Modell, Signing, Release-Erstellung
+- [ROADMAP.md](ROADMAP.md) — Implementierungsreihenfolge, aktueller Fortschritt
 
 ## Branch-Modell
 
