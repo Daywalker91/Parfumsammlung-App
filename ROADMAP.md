@@ -2,14 +2,16 @@
 
 Reihenfolge, mit der wir am schnellsten zu einer wirklich nutzbaren App kommen. Jede Phase baut auf der vorherigen auf — nichts davon ist parallel gedacht. Details zu den einzelnen Features stehen in `Parfum-App_Plan.md`, hier geht's nur um die Reihenfolge.
 
-## Phase 1 — Kern-CRUD (MVP, komplett ohne Gemini nutzbar)
-- [ ] Repository-Schicht über den bestehenden Room-DAOs
-- [ ] Compose-Navigation-Grundgerüst
-- [ ] Sammlung-Liste (Besitzt/Wunschliste getrennt)
-- [ ] Parfum-Detail-Ansicht (inkl. Duftpyramide)
-- [ ] Hinzufügen/Bearbeiten-Formular (manuell, inkl. Noten + Position)
-- [ ] Löschen
-- [ ] Duplikat-Check beim Hinzufügen (Name+Marke)
+## Phase 1 — Kern-CRUD (MVP, komplett ohne Gemini nutzbar) ✅ fertig (2026-08-15)
+- [x] Repository-Schicht über den bestehenden Room-DAOs
+- [x] Compose-Navigation-Grundgerüst
+- [x] Sammlung-Liste (Besitzt/Wunschliste getrennt)
+- [x] Parfum-Detail-Ansicht (inkl. Duftpyramide)
+- [x] Hinzufügen/Bearbeiten-Formular (manuell, inkl. Noten + Position)
+- [x] Löschen
+- [ ] Duplikat-Check beim Hinzufügen (Name+Marke) — Logik implementiert, aber nicht end-to-end im Emulator durchgeklickt (siehe unten)
+
+Auf dem Emulator durchgeklickt und verifiziert: Anlegen (inkl. Note mit Position), Listen-Reaktivität, Detail-Ansicht mit korrekt gruppierter Duftpyramide, Bearbeiten-Vorbelegung, Löschen mit Bestätigungsdialog. Der Duplikat-Check-Dialog selbst wurde nicht manuell durchgeklickt — Code ist vorhanden und dieselben Muster (State-Flow, AlertDialog) sind an anderer Stelle bereits bestätigt funktionsfähig.
 
 **Warum zuerst:** Ergibt eine komplett benutzbare App, bevor überhaupt ein Gemini-Key existiert. Der manuelle Eintrag ist laut Plan ohnehin Pflicht-Fallback (offline, unzureichende Erkennung) — wird so oder so gebraucht. Etabliert Repository/Navigation/ViewModel-Architektur, an die alles Weitere nur andockt.
 
