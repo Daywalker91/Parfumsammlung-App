@@ -2,6 +2,9 @@
 
     <!-- Für Gemini-API-Calls (Bilderkennung) und den Self-Update-Mechanismus (GitHub Releases API) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Für den Barcode-Scan (ML Kit Code Scanner) und die Foto-Aufnahme -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:name=".AromathekApplication"
@@ -21,6 +24,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Liefert dem System-Kamera-Intent ein content://-Ziel für Fotoaufnahmen,
+             ohne den internen App-Speicherpfad direkt als file:// preiszugeben. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Wird vom ML-Kit-Code-Scanner-Modul benötigt (lädt das Scan-UI bei Bedarf nach). -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
 
     </application>
 

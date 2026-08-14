@@ -79,4 +79,17 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // Bildanzeige (Phase 2)
+    implementation(libs.coil.compose)
+
+    // Verschlüsselte Ablage des Gemini-API-Keys (Phase 4)
+    implementation(libs.androidx.security.crypto)
+
+    // On-device Barcode-Scan, kein CameraX/eigene Kamera-UI nötig (Phase 3)
+    implementation(libs.play.services.code.scanner)
+
+    // Gemini-REST-Calls (Phase 4) — bewusst kein Google-AI-SDK, um keine weitere
+    // Dependency-Versionsfront neben AGP/Kotlin/Compose aufzumachen.
+    implementation(libs.okhttp)
 }
