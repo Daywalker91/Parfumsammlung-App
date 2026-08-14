@@ -24,6 +24,9 @@ interface PerfumeDao {
     @Query("SELECT * FROM perfume WHERE status = :status ORDER BY name ASC")
     fun observeByStatus(status: PerfumeStatus): Flow<List<Perfume>>
 
+    @Query("SELECT * FROM perfume WHERE id = :id")
+    fun observeById(id: Long): Flow<Perfume?>
+
     /** Für den Duplikat-Check beim Hinzufügen (siehe Plan, Kapitel „User-Flow: Parfum hinzufügen"). */
     @Query("SELECT * FROM perfume WHERE name = :name AND marke = :marke LIMIT 1")
     suspend fun findByNameAndMarke(name: String, marke: String): Perfume?

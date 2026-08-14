@@ -22,6 +22,10 @@ interface PerfumeNoteDao {
     @Delete
     suspend fun delete(crossRef: PerfumeNote)
 
+    /** Beim Bearbeiten werden bestehende Zuordnungen komplett ersetzt statt einzeln geändert. */
+    @Query("DELETE FROM perfume_note WHERE perfumeId = :perfumeId")
+    suspend fun deleteAllForPerfume(perfumeId: Long)
+
     @Query(
         """
         SELECT note.id AS id, note.name AS name, note.kategorie AS kategorie, perfume_note.position AS position
