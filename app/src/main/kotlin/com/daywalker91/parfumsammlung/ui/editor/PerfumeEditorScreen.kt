@@ -1,13 +1,19 @@
 package com.daywalker91.parfumsammlung.ui.editor
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -37,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,22 +53,34 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.initializer
+import coil3.compose.AsyncImage
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.AktivesBild
+import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.NotenEingabe
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PerfumeEditorScreen(
     perfumeId: Long?,
     repository: PerfumeRepository,
+    imageStorage: ImageStorage,
     onSaved: () -> Unit,
     onBack: () -> Unit,
+    initialBildPfadEigen: String? = null,
+    vorschlag: PerfumeSuggestion? = null,
+    initialEan: String? = null,
 ) {
     val viewModel: PerfumeEditorViewModel = viewModel(
-        factory = viewModelFactory { initializer { PerfumeEditorViewModel(perfumeId, repository) } },
+        factory = viewModelFactory {
+            initializer {
+                PerfumeEditorViewModel(perfumeId, repository, imageStorage, initialBildPfadEigen, vorschlag, initialEan)
+            }
+        },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -121,6 +142,15 @@ fun PerfumeEditorScreen(
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                 ) { Text(stringResource(R.string.status_wunschliste)) }
             }
+
+            BildAuswahlSektion(
+                bildPfadEigen = uiState.bildPfadEigen,
+                bildPfadStock = uiState.bildPfadStock,
+                aktivesBild = uiState.aktivesBild,
+                imageStorage = imageStorage,
+                onFotoGewaehlt = viewModel::eigenesFotoGewaehlt,
+                onAktivesBildGeaendert = viewModel::aktivesBildGesetzt,
+            )
 
             OutlinedTextField(
                 value = uiState.beschreibung,
@@ -193,6 +223,80 @@ fun PerfumeEditorScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun BildAuswahlSektion(
+    bildPfadEigen: String?,
+    bildPfadStock: String?,
+    aktivesBild: AktivesBild?,
+    imageStorage: ImageStorage,
+    onFotoGewaehlt: (Uri) -> Unit,
+    onAktivesBildGeaendert: (AktivesBild) -> Unit,
+) {
+    val angezeigterPfad = when (aktivesBild) {
+        AktivesBild.STOCK -> bildPfadStock ?: bildPfadEigen
+        else -> bildPfadEigen ?: bildPfadStock
+    }
+
+    var kameraZielUri by remember { mutableStateOf<Uri?>(null) }
+    val kameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture(),
+    ) { erfolgreich -> if (erfolgreich) kameraZielUri?.let(onFotoGewaehlt) }
+    val kameraBerechtigungLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { erlaubt ->
+        if (erlaubt) {
+            val ziel = imageStorage.neueKameraZielUri()
+            kameraZielUri = ziel
+            kameraLauncher.launch(ziel)
+        }
+    }
+    val galerieLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> uri?.let(onFotoGewaehlt) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.foto), style = MaterialTheme.typography.titleMedium)
+
+        if (angezeigterPfad != null) {
+            AsyncImage(
+                model = angezeigterPfad,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+            )
+        }
+
+        if (bildPfadEigen != null && bildPfadStock != null) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = aktivesBild == AktivesBild.EIGEN,
+                    onClick = { onAktivesBildGeaendert(AktivesBild.EIGEN) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text(stringResource(R.string.eigenes_foto)) }
+                SegmentedButton(
+                    selected = aktivesBild == AktivesBild.STOCK,
+                    onClick = { onAktivesBildGeaendert(AktivesBild.STOCK) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text(stringResource(R.string.stock_bild)) }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { kameraBerechtigungLauncher.launch(android.Manifest.permission.CAMERA) }) {
+                Text(stringResource(R.string.foto_aufnehmen))
+            }
+            OutlinedButton(
+                onClick = {
+                    galerieLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+            ) { Text(stringResource(R.string.aus_galerie_waehlen)) }
+        }
     }
 }
 

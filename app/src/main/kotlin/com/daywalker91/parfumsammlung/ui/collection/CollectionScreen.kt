@@ -1,36 +1,51 @@
 package com.daywalker91.parfumsammlung.ui.collection
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.initializer
+import coil3.compose.AsyncImage
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
 import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 
@@ -38,17 +53,29 @@ import com.daywalker91.parfumsammlung.data.PerfumeRepository
 @Composable
 fun CollectionScreen(
     repository: PerfumeRepository,
+    firstLaunchPrefs: FirstLaunchPrefs,
     onPerfumeClick: (Long) -> Unit,
     onAddClick: () -> Unit,
+    onSettingsClick: () -> Unit,
 ) {
     val viewModel: CollectionViewModel = viewModel(
         factory = viewModelFactory { initializer { CollectionViewModel(repository) } },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var ausgewaehlterTab by remember { mutableIntStateOf(0) }
+    var zeigeDatenschutzHinweis by remember { mutableStateOf(!firstLaunchPrefs.datenschutzGesehen()) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.einstellungen))
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddClick) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.hinzufuegen))
@@ -87,6 +114,20 @@ fun CollectionScreen(
             }
         }
     }
+
+    if (zeigeDatenschutzHinweis) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.datenschutz_hinweis_titel)) },
+            text = { Text(stringResource(R.string.datenschutz_hinweis_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    firstLaunchPrefs.datenschutzAlsGesehenMarkieren()
+                    zeigeDatenschutzHinweis = false
+                }) { Text(stringResource(R.string.verstanden)) }
+            },
+        )
+    }
 }
 
 @Composable
@@ -97,9 +138,26 @@ private fun PerfumeListItem(perfume: Perfume, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = perfume.name, style = MaterialTheme.typography.titleMedium)
-            Text(text = perfume.marke, style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val bildPfad = perfume.bildPfadEigen ?: perfume.bildPfadStock
+            if (bildPfad != null) {
+                AsyncImage(
+                    model = bildPfad,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            Column {
+                Text(text = perfume.name, style = MaterialTheme.typography.titleMedium)
+                Text(text = perfume.marke, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

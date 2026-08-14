@@ -44,6 +44,12 @@ class PerfumeRepository(
 
     suspend fun delete(perfume: Perfume) = perfumeDao.delete(perfume)
 
+    /** Direktes Umschalten zwischen eigenem Foto und Stock-Bild, ohne den vollen Bearbeiten-Flow. */
+    suspend fun setzeAktivesBild(perfumeId: Long, bild: AktivesBild) {
+        val bestehend = perfumeDao.getById(perfumeId) ?: return
+        perfumeDao.update(bestehend.copy(aktivesBild = bild))
+    }
+
     /** Bestehende Notes (nach Name) werden wiederverwendet, neue automatisch angelegt. */
     private suspend fun speichereNotenZuordnung(perfumeId: Long, notenZuordnung: List<NotenEingabe>) {
         notenZuordnung.forEach { eingabe ->

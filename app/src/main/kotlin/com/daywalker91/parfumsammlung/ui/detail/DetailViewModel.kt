@@ -2,6 +2,7 @@ package com.daywalker91.parfumsammlung.ui.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daywalker91.parfumsammlung.data.AktivesBild
 import com.daywalker91.parfumsammlung.data.NoteWithPosition
 import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
@@ -37,5 +38,10 @@ class DetailViewModel(
             uiState.value.perfume?.let { repository.delete(it) }
             onFertig()
         }
+    }
+
+    fun aktivesBildUmschalten(bild: AktivesBild) {
+        val perfumeId = uiState.value.perfume?.id ?: return
+        viewModelScope.launch { repository.setzeAktivesBild(perfumeId, bild) }
     }
 }
