@@ -1,0 +1,54 @@
+name: Build & Release
+
+# Siehe Parfum-App_CICD_Plan.md für die volle Erklärung des Branch-/Versionierungsmodells.
+on:
+  push:
+    branches: [Stable]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Guard: verhindert einen versehentlichen (Pre-)Release, falls workflow_dispatch
+    # manuell von einem anderen Branch als Stable/Experimental ausgelöst wird.
+    if: github.ref_name == 'Stable' || github.ref_name == 'Experimental'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # volle Tag-Historie nötig, um den letzten vX.Y-Tag zu finden
+
+      - name: Determine version (X.Y scheme)
+        id: version
+        run: |
+          LAST=$(git tag -l 'v*.*' | sed 's/^v//' | sort -t. -k1,1n -k2,2n | tail -1)
+          if [ -z "$LAST" ]; then X=0; Y=0; else X=${LAST%%.*}; Y=${LAST##*.}; fi
+
+          if [ "${{ github.ref_name }}" = "Stable" ]; then
+            X=$((X + 1)); Y=0
+          else
+            Y=$((Y + 1))
+          fi
+
+          echo "versionName=$X.$Y" >> "$GITHUB_OUTPUT"
+          echo "versionCode=$((X * 10000 + Y))" >> "$GITHUB_OUTPUT"
+          echo "tag=v$X.$Y" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease -PversionCode=${{ steps.version.outputs.versionCode }} -PversionName=${{ steps.version.outputs.versionName }}
+
+      - uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          prerelease: ${{ github.ref_name == 'Experimental' }}
+          files: app/build/outputs/apk/release/*.apk

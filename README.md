@@ -1,4 +1,4 @@
-# Flakon — Parfüm-Datenbank App
+# Aromathek — Parfüm-Datenbank App
 
 *Private Android-App zum Verwalten einer Parfum-Sammlung — kein Play-Store-Release, Verteilung per Sideload.*
 

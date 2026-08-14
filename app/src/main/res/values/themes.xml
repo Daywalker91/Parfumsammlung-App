@@ -1,0 +1,7 @@
+<resources>
+    <!-- Reiner Platform-Theme für die Zeit vor setContent{} (Fenster-/Statusleisten-Basis).
+         Das eigentliche UI-Theming läuft über Compose Material3 (siehe ui/theme/Theme.kt). -->
+    <style name="Theme.Aromathek" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+</resources>

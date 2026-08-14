@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Platzhalter-Icon: stilisierter Parfum-Flakon, weiß auf transparent.
+         Passt in die 66dp-Safe-Zone des Adaptive-Icon-Systems. -->
+    <!-- Verschluss -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M49,28 L59,28 L59,36 L49,36 Z" />
+    <!-- Hals -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,36 L62,36 L58,46 L50,46 Z" />
+    <!-- Flakon-Körper -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,46 L68,46 C70.2,46 72,47.8 72,50 L72,76 C72,78.2 70.2,80 68,80 L40,80 C37.8,80 36,78.2 36,76 L36,50 C36,47.8 37.8,46 40,46 Z" />
+    <!-- Deckglanz -->
+    <path
+        android:fillColor="#6B4E3D"
+        android:fillAlpha="0.35"
+        android:pathData="M42,52 L46,52 L46,74 L42,74 Z" />
+</vector>

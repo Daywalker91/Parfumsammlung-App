@@ -18,14 +18,21 @@
 
 ---
 
-## Versionierung: versionCode ↔ Release-Tag
+## Versionierung: X.Y-Schema ↔ Release-Tag ↔ versionCode
 
-`versionCode` wird **nicht** manuell in `build.gradle` gepflegt, sondern beim CI-Build automatisch aus `github.run_number` gesetzt — dieselbe Zahl, die auch als Release-Tag verwendet wird. Damit sind Tag, `versionCode` und der Update-Vergleich in der App (siehe Hauptplan, „Self-Update über GitHub Releases", Schritt 2) immer zwangsläufig synchron, kein manuelles Nachpflegen nötig, kein Risiko einer vergessenen Erhöhung.
+`versionCode` wird **nicht** manuell in `build.gradle` gepflegt. Stattdessen gilt ein zweiteiliges Versionsschema `X.Y`:
 
-**Gradle-Seite (`app/build.gradle.kts`, später beim Scaffolding umzusetzen):**
+- **X** (Major) zählt bei jedem **Stable**-Release hoch
+- **Y** (Minor) zählt bei jedem **Experimental**-Release hoch — **und wird bei jedem Stable-Release auf 0 zurückgesetzt**
+
+Beispiel: `1.0` (erster Stable) → `1.1`, `1.2` (zwei Experimental-Builds danach) → `2.0` (nächster Stable, Y resettet) → `2.1` …
+
+Damit zeigt die Versionsnummer auf einen Blick, wie viele Experimental-Builds seit dem letzten Stable-Release existieren. Quelle der Wahrheit sind Git-Tags im Format `vX.Y` — der Workflow ermittelt den letzten Tag, berechnet X/Y für den neuen Release und leitet daraus **Tag**, **`versionName`** (`"X.Y"`) und **`versionCode`** (`X * 10000 + Y`, als einzelne monoton steigende Ganzzahl für Android) ab. Damit sind Tag, `versionCode` und der Update-Vergleich in der App (siehe Hauptplan, „Self-Update über GitHub Releases", Schritt 2) immer zwangsläufig synchron.
+
+**Gradle-Seite (`app/build.gradle.kts`):**
 ```kotlin
 val ciVersionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-val ciVersionName = project.findProperty("versionName") as String? ?: "0.1.0-dev"
+val ciVersionName = project.findProperty("versionName") as String? ?: "0.0-dev"
 
 android {
     defaultConfig {
@@ -34,7 +41,7 @@ android {
     }
 }
 ```
-Ohne die `-P`-Properties (lokaler Dev-Build) greifen sinnvolle Defaults (`versionCode = 1`, `versionName = "0.1.0-dev"`).
+Ohne die `-P`-Properties (lokaler Dev-Build) greifen sinnvolle Defaults (`versionCode = 1`, `versionName = "0.0-dev"`).
 
 ---
 
@@ -56,10 +63,29 @@ jobs:
     if: github.ref_name == 'Stable' || github.ref_name == 'Experimental'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # volle Tag-Historie nötig, um den letzten vX.Y-Tag zu finden
+
+      - name: Determine version (X.Y scheme)
+        id: version
+        run: |
+          LAST=$(git tag -l 'v*.*' | sed 's/^v//' | sort -t. -k1,1n -k2,2n | tail -1)
+          if [ -z "$LAST" ]; then X=0; Y=0; else X=${LAST%%.*}; Y=${LAST##*.}; fi
+
+          if [ "${{ github.ref_name }}" = "Stable" ]; then
+            X=$((X + 1)); Y=0
+          else
+            Y=$((Y + 1))
+          fi
+
+          echo "versionName=$X.$Y" >> "$GITHUB_OUTPUT"
+          echo "versionCode=$((X * 10000 + Y))" >> "$GITHUB_OUTPUT"
+          echo "tag=v$X.$Y" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-java@v4
         with: { java-version: '17', distribution: 'temurin' }
       - name: Build release APK
-        run: ./gradlew assembleRelease -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+        run: ./gradlew assembleRelease -PversionCode=${{ steps.version.outputs.versionCode }} -PversionName=${{ steps.version.outputs.versionName }}
       - uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: app/build/outputs/apk/release
@@ -69,16 +95,17 @@ jobs:
           keyPassword: ${{ secrets.KEY_PASSWORD }}
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
+          tag_name: ${{ steps.version.outputs.tag }}
           prerelease: ${{ github.ref_name == 'Experimental' }}
           files: app/build/outputs/apk/release/*.apk
 ```
 
 **Verhalten**
-- Push auf `Stable` → Workflow läuft automatisch → normales Release, `versionCode`/Tag = aktuelle `run_number`
-- Auf `Experimental` → nichts passiert automatisch bei Push; manuell im Actions-Tab auslösen (Branch `Experimental` auswählen, „Run workflow" klicken) → Pre-Release wird erstellt
+- Push auf `Stable` → Workflow läuft automatisch → normales Release, X zählt hoch, Y resettet auf 0 (z. B. `2.3` → `3.0`)
+- Auf `Experimental` → nichts passiert automatisch bei Push; manuell im Actions-Tab auslösen (Branch `Experimental` auswählen, „Run workflow" klicken) → Pre-Release, Y zählt hoch (z. B. `2.3` → `2.4`)
 - Manueller Trigger von jedem anderen Branch → Job bricht sofort ab (Guard), kein Release
 - `prerelease`-Flag entscheidet sich am `github.ref_name`, funktioniert für beide Auslöse-Arten gleich
+- `versionCode` (`X * 10000 + Y`) steigt bei jedem Release strikt monoton — Voraussetzung dafür, dass Android das Update überhaupt installiert (siehe Hauptplan)
 
 ---
 
