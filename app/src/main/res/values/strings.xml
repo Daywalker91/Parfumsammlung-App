@@ -43,4 +43,37 @@
     <string name="duplikat_text">„%1$s\" von %2$s ist schon in der Sammlung. Was möchtest du tun?</string>
     <string name="duplikat_aktualisieren">Vorhandenen Eintrag aktualisieren</string>
     <string name="duplikat_neu_anlegen">Trotzdem neu anlegen</string>
+
+    <!-- Bildverwaltung (Phase 2) -->
+    <string name="foto">Foto</string>
+    <string name="eigenes_foto">Eigenes Foto</string>
+    <string name="stock_bild">Stock-Bild</string>
+    <string name="foto_aufnehmen">Foto aufnehmen</string>
+    <string name="aus_galerie_waehlen">Aus Galerie wählen</string>
+
+    <!-- Barcode-Scan (Phase 3) -->
+    <string name="barcode_scannen">Barcode scannen</string>
+    <string name="ean_erkannt">EAN erkannt: %s</string>
+    <string name="barcode_fehlgeschlagen">Barcode-Scan nicht verfügbar.</string>
+
+    <!-- Foto-Hinzufügen-Flow / Gemini (Phase 4) -->
+    <string name="parfum_hinzufuegen">Parfum hinzufügen</string>
+    <string name="manuell_eingeben">Manuell eingeben</string>
+    <string name="einstellungen">Einstellungen</string>
+    <string name="gemini_api_key">Gemini-API-Key</string>
+    <string name="gemini_key_erklaerung">Für die Foto-Erkennung wird ein eigener, kostenloser Gemini-API-Key benötigt (aistudio.google.com). Der Key wird ausschließlich verschlüsselt auf diesem Gerät gespeichert und nirgendwo sonst hinterlegt.</string>
+    <string name="gespeichert">Gespeichert.</string>
+
+    <string name="hinweis_kein_api_key_titel">Kein API-Key hinterlegt</string>
+    <string name="hinweis_kein_api_key_text">Foto-Erkennung braucht einen Gemini-API-Key (Einstellungen → Gemini-API-Key). Ohne Key bleibt nur die manuelle Eingabe — das Foto wird dabei trotzdem übernommen.</string>
+    <string name="hinweis_offline_titel">Keine Internetverbindung</string>
+    <string name="hinweis_offline_text">Die Foto-Erkennung braucht eine Internetverbindung. Das Foto bleibt erhalten — du kannst die Angaben auch ohne Netz manuell ergänzen.</string>
+    <string name="hinweis_nicht_genug_daten_titel">Nicht genug Daten gefunden</string>
+    <string name="hinweis_nicht_genug_daten_text">Zu diesem Parfum konnten keine verlässlichen Informationen gefunden werden (z. B. bei seltenen Nischenprodukten). Das Foto bleibt erhalten — bitte die Angaben manuell ergänzen, oder vorher einen Barcode-Scan als zweite Erkennungsquelle versuchen.</string>
+    <string name="hinweis_fehler_titel">Etwas ist schiefgelaufen</string>
+
+    <!-- Datenschutz-Hinweis -->
+    <string name="datenschutz_hinweis_titel">Kurzer Hinweis</string>
+    <string name="datenschutz_hinweis_text">Fotos, die du zur Erkennung nutzt, werden an Google (Gemini-API) übertragen — mit deinem eigenen, selbst hinterlegten API-Key. Ohne Foto-Erkennung (rein manuelle Nutzung) verlässt nichts dein Gerät.</string>
+    <string name="verstanden">Verstanden</string>
 </resources>
