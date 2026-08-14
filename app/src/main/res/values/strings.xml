@@ -1,3 +1,46 @@
 <resources>
     <string name="app_name">Aromathek</string>
+
+    <string name="hinzufuegen">Hinzufügen</string>
+    <string name="entfernen">Entfernen</string>
+    <string name="bearbeiten">Bearbeiten</string>
+    <string name="loeschen">Löschen</string>
+    <string name="abbrechen">Abbrechen</string>
+    <string name="zurueck">Zurück</string>
+    <string name="speichern">Speichern</string>
+
+    <string name="tab_sammlung">Sammlung (%d)</string>
+    <string name="tab_wunschliste">Wunschliste (%d)</string>
+    <string name="leere_sammlung">Noch keine Parfums in der Sammlung.</string>
+    <string name="leere_wunschliste">Die Wunschliste ist noch leer.</string>
+
+    <string name="neues_parfum">Neues Parfum</string>
+    <string name="parfum_bearbeiten">Parfum bearbeiten</string>
+
+    <string name="feld_name">Name</string>
+    <string name="feld_marke">Marke</string>
+    <string name="feld_beschreibung">Beschreibung</string>
+    <string name="feld_uvp">UVP (€)</string>
+    <string name="feld_flakongroesse">Flakongröße</string>
+    <string name="feld_ean">EAN</string>
+    <string name="feld_verfuegbare_groessen">Verfügbare Größen</string>
+    <string name="feld_notiz">Notiz</string>
+    <string name="feld_bewertung">Bewertung</string>
+
+    <string name="status_besitzt">Besitze ich</string>
+    <string name="status_wunschliste">Wunschliste</string>
+
+    <string name="duftpyramide">Duftpyramide</string>
+    <string name="note_hinzufuegen">Note</string>
+    <string name="position_kopf">Kopfnote</string>
+    <string name="position_herz">Herznote</string>
+    <string name="position_basis">Basisnote</string>
+
+    <string name="loeschen_bestaetigen_titel">Parfum löschen?</string>
+    <string name="loeschen_bestaetigen_text">„%1$s\" von %2$s wird endgültig gelöscht.</string>
+
+    <string name="duplikat_titel">Bereits vorhanden</string>
+    <string name="duplikat_text">„%1$s\" von %2$s ist schon in der Sammlung. Was möchtest du tun?</string>
+    <string name="duplikat_aktualisieren">Vorhandenen Eintrag aktualisieren</string>
+    <string name="duplikat_neu_anlegen">Trotzdem neu anlegen</string>
 </resources>
