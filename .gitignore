@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Local configuration (contains local SDK path, optionally API keys)
+local.properties
+
+# Android Studio / IntelliJ (not used in this project, but harmless to ignore)
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# VSCode (personal editor state, not project config)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Signing keys — must never be committed, CI uses GitHub Secrets instead
+*.keystore
+*.jks
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Logs
+*.log
+
+# OS cruft
+.DS_Store
+Thumbs.db
