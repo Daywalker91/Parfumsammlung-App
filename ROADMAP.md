@@ -62,3 +62,16 @@ Self-Update und Entwickler-Optionen live gegen die echte GitHub-API des Repos ve
 - [ ] DB-Export/Backup als ZIP
 
 **Warum zuletzt:** Reines Sicherheits-/Komfort-Feature, blockiert nichts anderes und betrifft niemanden, bis tatsächlich Daten da sind, die es wert sind, gesichert zu werden.
+
+## Phase 7 — Design-Überarbeitung (v2, noch nicht begonnen)
+
+Nutzer-Feedback 2026-08-15 zum aktuellen `DetailScreen`: wirkt "alles auf einen Haufen". Gewünschte Struktur, explizit erst für v2 vorgesehen (nicht jetzt umsetzen):
+
+- **Immer sichtbar (Header, kein Tab):** Name, Hersteller/Marke, Bild.
+- **Tab 1:** Beschreibung + Duftpyramide.
+- **Tab 2:** Bewertung (Sterne) + eigene Notiz.
+- **Tab 3:** UVP/Preis + Flakongröße + verfügbare Flakongrößen.
+- **Duftpyramide — kleine Symbole pro Note**, angelehnt an das Vorbild [parfumo.de](https://www.parfumo.de) (Screenshot vom Nutzer gezeigt): dort hat z. B. Aldehyde einen Wassertropfen, maritime Noten eine Welle, Orange/rote Mandarine Frucht-Icons, Neroli eine Blüte, Pfeffer/Zeder/Amber/Tonkabohne/Vanille/Vetiver/weißer Moschus jeweils ein passendes kleines Icon. Braucht ein Mapping Notenname → Icon (zumindest für die häufigsten Noten) mit einem neutralen Fallback-Icon für unbekannte/seltene Noten.
+- Unklar/noch zu klären, sobald diese Phase angegangen wird: ob der Editor-Screen (`PerfumeEditorScreen`, aktuell eine lange Formular-Liste) dieselbe Tab-Aufteilung bekommen soll oder als Formular bleibt — bisher nur für den reinen Anzeige-Screen (`DetailScreen`) besprochen.
+
+**Warum noch nicht:** Nutzer möchte das bewusst erst angehen, wenn v2 ansteht — bis dahin nur dokumentiert, nicht implementiert.
