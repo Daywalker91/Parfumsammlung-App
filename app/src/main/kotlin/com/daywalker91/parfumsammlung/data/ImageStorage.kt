@@ -3,10 +3,14 @@ package com.daywalker91.parfumsammlung.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.exifinterface.media.ExifInterface
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.util.UUID
 
 /**
@@ -41,7 +45,23 @@ class ImageStorage(private val context: Context) {
     /** Für per Gemini/Websuche gefundene Stock-Bilder (bereits heruntergeladene Bytes). */
     fun speichereVonBytes(bytes: ByteArray, maxDimension: Int = 1600, qualitaet: Int = 85): String? {
         val grob = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-        return speichereBitmap(skaliereAufMax(grob, maxDimension), qualitaet)
+        val grad = ByteArrayInputStream(bytes).use { exifRotationGrad(it) }
+        return speichereBitmap(skaliereAufMax(rotiere(grob, grad), maxDimension), qualitaet)
+    }
+
+    /**
+     * Dreht ein bereits lokal gespeichertes Bild manuell um 90° im Uhrzeigersinn
+     * (Editor-Funktion, für Fälle wo weder EXIF noch Auto-Erkennung die richtige
+     * Ausrichtung treffen). Legt bewusst eine neue Datei an statt die alte zu
+     * überschreiben — sonst würde Coils Bild-Cache (Cache-Key = Dateipfad) die
+     * alte, ungedrehte Version weiter anzeigen.
+     */
+    fun drehe90Grad(pfad: String): String? {
+        val original = BitmapFactory.decodeFile(pfad) ?: return null
+        val gedreht = rotiere(original, 90)
+        val neuerPfad = speichereBitmap(gedreht, qualitaet = 90)
+        loesche(pfad)
+        return neuerPfad
     }
 
     /** Löscht ein zuvor gespeichertes Bild (z. B. beim Ersetzen des eigenen Fotos). */
@@ -84,7 +104,36 @@ class ImageStorage(private val context: Context) {
         val grob = decodeStream.use { BitmapFactory.decodeStream(it, null, decodeOptions) }
             ?: return null
 
-        return skaliereAufMax(grob, maxDimension)
+        // Kamerafotos speichern ihre tatsächliche Ausrichtung oft nur als
+        // EXIF-Tag, die rohen Pixel bleiben in der Sensor-Ausrichtung (meist
+        // quer) — ohne diese Korrektur landet z. B. ein Hochformat-Foto quer
+        // in der App, obwohl die Kamera-App selbst es korrekt anzeigt.
+        val exifStream = resolver.openInputStream(uri) ?: return skaliereAufMax(grob, maxDimension)
+        val grad = exifStream.use { exifRotationGrad(it) }
+
+        return skaliereAufMax(rotiere(grob, grad), maxDimension)
+    }
+
+    /** Rotationswinkel (0/90/180/270) aus den EXIF-Metadaten eines Bild-Streams. Spiegelungen
+     * (FLIP_HORIZONTAL/VERTICAL) werden bewusst nicht extra behandelt — kommen bei Fotos aus
+     * Kamera/Galerie/Websuche praktisch nicht vor, nur die vier Rotationsstufen sind relevant. */
+    private fun exifRotationGrad(stream: InputStream): Int = try {
+        when (ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+            else -> 0
+        }
+    } catch (e: Exception) {
+        0
+    }
+
+    private fun rotiere(bitmap: Bitmap, grad: Int): Bitmap {
+        if (grad == 0) return bitmap
+        val matrix = Matrix().apply { postRotate(grad.toFloat()) }
+        val gedreht = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (gedreht !== bitmap) bitmap.recycle()
+        return gedreht
     }
 
     private fun skaliereAufMax(bitmap: Bitmap, maxDimension: Int): Bitmap {

@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,6 +86,14 @@ fun AddChoiceScreen(
         }
     }
 
+    // Nur ein Toast, kein blockierender Dialog — die Haupterkennung war ja
+    // trotzdem erfolgreich, das betrifft nur das optionale Stock-Bild.
+    LaunchedEffect(Unit) {
+        viewModel.stockBildHinweis.collect { textResId ->
+            Toast.makeText(context, context.getString(textResId), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -144,8 +151,17 @@ fun AddChoiceScreen(
             ) { Text(stringResource(R.string.manuell_eingeben)) }
 
             if (uiState.ladeVorgang) {
-                Box(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), contentAlignment = Alignment.Center) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     CircularProgressIndicator()
+                    // Kein Timeout mehr auf Gemini-Anfragen (siehe GeminiService) — dafür
+                    // muss der Nutzer selbst abbrechen können, statt endlos zu warten.
+                    TextButton(onClick = viewModel::abbrechen) {
+                        Text(stringResource(R.string.abbrechen))
+                    }
                 }
             }
         }

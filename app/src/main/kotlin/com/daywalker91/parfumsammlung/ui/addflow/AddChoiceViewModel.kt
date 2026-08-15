@@ -3,6 +3,7 @@ package com.daywalker91.parfumsammlung.ui.addflow
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
@@ -10,8 +11,12 @@ import com.daywalker91.parfumsammlung.data.gemini.GeminiService
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -41,7 +46,24 @@ class AddChoiceViewModel(
     private val _uiState = MutableStateFlow(AddChoiceUiState())
     val uiState: StateFlow<AddChoiceUiState> = _uiState.asStateFlow()
 
+    // Referenz auf den laufenden Erkennungs-Vorgang, damit "Abbrechen" ihn
+    // gezielt canceln kann (statt z. B. viewModelScope komplett zu canceln).
+    private var erkennungsJob: Job? = null
+
+    // Einmaliger Diagnose-Hinweis zum Stock-Bild (kein blockierender Dialog wie
+    // `hinweis`, da die Haupterkennung ja trotzdem erfolgreich war) — hilft zu
+    // unterscheiden, ob Gemini schlicht keine Bild-URL geliefert hat oder ob der
+    // Download einer gelieferten URL fehlgeschlagen ist (z. B. Hotlink-Schutz).
+    private val _stockBildHinweis = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+    val stockBildHinweis: SharedFlow<Int> = _stockBildHinweis.asSharedFlow()
+
     fun eanErkannt(ean: String) = _uiState.update { it.copy(ean = ean) }
+
+    /** Bricht einen laufenden Foto-Erkennungsvorgang ab (kein Timeout mehr, siehe GeminiService). */
+    fun abbrechen() {
+        erkennungsJob?.cancel()
+        _uiState.update { it.copy(ladeVorgang = false) }
+    }
 
     fun hinweisSchliessen() = _uiState.update { it.copy(hinweis = null) }
 
@@ -57,7 +79,7 @@ class AddChoiceViewModel(
     fun trotzdemManuellFortfahren() = _uiState.update { it.copy(hinweis = null, navigiereZuEditor = true) }
 
     fun fotoVerarbeiten(uri: Uri) {
-        viewModelScope.launch {
+        erkennungsJob = viewModelScope.launch {
             _uiState.update { it.copy(ladeVorgang = true) }
 
             val bildPfadEigen = withContext(Dispatchers.IO) { imageStorage.speichereVonUri(uri) }
@@ -77,10 +99,15 @@ class AddChoiceViewModel(
 
             when (val ergebnis = geminiService.erkennePerfum(apiKey, bildBytes, _uiState.value.ean)) {
                 is GeminiErgebnis.Erfolg -> {
-                    val bildPfadStock = ergebnis.vorschlag.stockBildUrl?.let { url ->
+                    val stockUrl = ergebnis.vorschlag.stockBildUrl
+                    val bildPfadStock = stockUrl?.let { url ->
                         geminiService.ladeBild(url)?.let { bytes ->
                             withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) }
                         }
+                    }
+                    when {
+                        stockUrl == null -> _stockBildHinweis.tryEmit(R.string.hinweis_kein_stock_bild_gefunden)
+                        bildPfadStock == null -> _stockBildHinweis.tryEmit(R.string.hinweis_stock_bild_download_fehlgeschlagen)
                     }
                     PerfumeSuggestionBridge.setzen(
                         PerfumeSuggestionBridge.Payload(ergebnis.vorschlag, bildPfadEigen, bildPfadStock, _uiState.value.ean),

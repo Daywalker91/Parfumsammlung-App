@@ -112,6 +112,8 @@ dependencies {
 
     // Bildanzeige (Phase 2)
     implementation(libs.coil.compose)
+    // EXIF-Auslesung (Bild-Rotation von Kamerafotos korrigieren)
+    implementation(libs.androidx.exifinterface)
 
     // Verschlüsselte Ablage des Gemini-API-Keys (Phase 4)
     implementation(libs.androidx.security.crypto)

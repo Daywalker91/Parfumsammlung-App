@@ -38,7 +38,11 @@ Nicht live durchscannbar in diesem Environment — der Emulator (ohne Play Store
 - [x] „Per Foto hinzufügen"-Flow — nutzt das Formular aus Phase 1 als Korrektur-UI, die Bildlogik aus Phase 2, optional die EAN aus Phase 3
 - [x] Fehlerfälle: offline-Hinweis, „nicht genug Daten gefunden"
 
-Modell: `gemini-3.5-flash`. Settings-Screen (API-Key speichern/lesen über EncryptedSharedPreferences) und der komplette Auswahl-Screen live verifiziert, kein Crash. Der eigentliche Gemini-Netzwerk-Call selbst ist in diesem Environment nicht end-to-end testbar (kein echter API-Key vorhanden) — Code folgt der Doku, Fehlerfälle (offline/kein Key/nicht genug Daten/sonstiger Fehler) sind implementiert und fallen alle auf manuelle Eingabe zurück, inkl. Erhalt des bereits aufgenommenen Fotos.
+Modell: `gemini-2.5-flash` (zunächst `gemini-3.5-flash`, siehe unten warum umgestellt). Settings-Screen (API-Key speichern/lesen über EncryptedSharedPreferences) und der komplette Auswahl-Screen live verifiziert, kein Crash. Der eigentliche Gemini-Netzwerk-Call selbst ist in diesem Environment nicht end-to-end testbar (kein echter API-Key vorhanden) — Code folgt der Doku, Fehlerfälle (offline/kein Key/nicht genug Daten/sonstiger Fehler) sind implementiert und fallen alle auf manuelle Eingabe zurück, inkl. Erhalt des bereits aufgenommenen Fotos.
+
+**Kein festes Timeout mehr, dafür manueller Abbrechen-Button (2026-08-15):** Auch 30/60/90s reichten teilweise nicht — ein Grounded-Request kann je nach Google-Antwortzeit unterschiedlich lange dauern. Statt eines weiteren (zwangsläufig geratenen) Zeitlimits: `GeminiService` hat jetzt gar kein Timeout mehr (`callTimeout(0, ...)`), der Netzwerk-Call läuft über einen echten abbrechbaren `enqueue`-Callback (`ausfuehrenAbbrechbar`) statt über blockierendes `execute()`, und `AddChoiceScreen` zeigt während des Ladens einen "Abbrechen"-Button, der den laufenden Vorgang per `AddChoiceViewModel.abbrechen()` sofort stoppt (inkl. echtem Canceln des OkHttp-Calls, nicht nur der Coroutine).
+
+**Modellwechsel 2026-08-15 (Hin und zurück):** Mit echtem API-Key trat bei jedem Versuch ein 429-Fehler auf. Ursache: Grounding mit Google-Suche (die App schickt bei jedem Request unbedingt `tools: [{"google_search": {}}]` mit, siehe `GeminiService.kt`) ist bei den Gemini-3.x-Modellen seit 5.1.2026 nur noch im bezahlten Tarif enthalten. Zunächst auf `gemini-2.5-flash` umgestellt (dort wäre Grounding noch kostenlos bis 500 Anfragen/Tag) — das schlug aber mit 404 fehl, weil Google die komplette 2.5er-Reihe inzwischen für neu erstellte API-Keys sperrt (vorgezogen vor dem offiziellen Abschaltdatum 16.10.2026). Zurück auf `gemini-3.5-flash`, stattdessen Billing auf dem Google-Cloud-Projekt aktiviert (5.000 grounded Anfragen/Monat weiterhin gratis inklusive — bei privater Nutzung real 0€/Monat). Vor der Entscheidung wurde der komplette App-Code auf mögliche Loop-/Mehrfachaufruf-Risiken geprüft (keine gefunden, siehe `AddChoiceViewModel.kt`/`AddChoiceScreen.kt`).
 
 **Warum erst jetzt:** Komplexestes und riskantestes Stück (externe API, JSON-Schema-Design, Netzwerk-Fehlerfälle) — auf einem bereits laufenden, getesteten Fundament aufsetzen statt gleichzeitig UI und Gemini-Integration zu debuggen.
 
@@ -58,3 +62,16 @@ Self-Update und Entwickler-Optionen live gegen die echte GitHub-API des Repos ve
 - [ ] DB-Export/Backup als ZIP
 
 **Warum zuletzt:** Reines Sicherheits-/Komfort-Feature, blockiert nichts anderes und betrifft niemanden, bis tatsächlich Daten da sind, die es wert sind, gesichert zu werden.
+
+## Phase 7 — Design-Überarbeitung (v2, noch nicht begonnen)
+
+Nutzer-Feedback 2026-08-15 zum aktuellen `DetailScreen`: wirkt "alles auf einen Haufen". Gewünschte Struktur, explizit erst für v2 vorgesehen (nicht jetzt umsetzen):
+
+- **Immer sichtbar (Header, kein Tab):** Name, Hersteller/Marke, Bild.
+- **Tab 1:** Beschreibung + Duftpyramide.
+- **Tab 2:** Bewertung (Sterne) + eigene Notiz.
+- **Tab 3:** UVP/Preis + Flakongröße + verfügbare Flakongrößen.
+- **Duftpyramide — kleine Symbole pro Note**, angelehnt an das Vorbild [parfumo.de](https://www.parfumo.de) (Screenshot vom Nutzer gezeigt): dort hat z. B. Aldehyde einen Wassertropfen, maritime Noten eine Welle, Orange/rote Mandarine Frucht-Icons, Neroli eine Blüte, Pfeffer/Zeder/Amber/Tonkabohne/Vanille/Vetiver/weißer Moschus jeweils ein passendes kleines Icon. Braucht ein Mapping Notenname → Icon (zumindest für die häufigsten Noten) mit einem neutralen Fallback-Icon für unbekannte/seltene Noten.
+- Unklar/noch zu klären, sobald diese Phase angegangen wird: ob der Editor-Screen (`PerfumeEditorScreen`, aktuell eine lange Formular-Liste) dieselbe Tab-Aufteilung bekommen soll oder als Formular bleibt — bisher nur für den reinen Anzeige-Screen (`DetailScreen`) besprochen.
+
+**Warum noch nicht:** Nutzer möchte das bewusst erst angehen, wenn v2 ansteht — bis dahin nur dokumentiert, nicht implementiert.

@@ -4,11 +4,15 @@ import android.util.Base64
 import java.io.IOException
 import java.net.UnknownHostException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -34,7 +38,30 @@ sealed interface GeminiErgebnis {
  * JSON angewiesen und die Antwort robust geparst (Markdown-Codefences etc.
  * werden toleriert).
  */
-class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
+class GeminiService(
+    // Bewusst KEIN Timeout mehr (siehe callTimeout(0, ...) unten): ein
+    // Grounded-Request (Bildanalyse + echte Websuche, siehe baueRequestBody)
+    // kann je nach Google-Antwortzeit sehr unterschiedlich lange dauern —
+    // statt eines festen Zeitlimits, das mal zu kurz und mal unnötig lang
+    // ist, kann der Nutzer den Vorgang stattdessen manuell abbrechen (siehe
+    // AddChoiceViewModel.abbrechen). Damit das Abbrechen den Netzwerk-Call
+    // auch wirklich sofort stoppt (Coroutine-Abbruch ist kooperativ, ein
+    // blockierender execute()-Call würde ihn ignorieren), läuft die Anfrage
+    // über ausfuehrenAbbrechbar() statt über ein simples execute().
+    //
+    // Wichtig: callTimeout(0) allein reicht NICHT — OkHttp hat daneben noch
+    // getrennte connect-/write-/read-Timeouts, die ohne explizite Angabe auf
+    // den Default von 10s stehen. Der Read-Timeout (Lücke zwischen Antwort-
+    // Paketen, z. B. während Gemini "nachdenkt", bevor die Antwort zu
+    // streamen beginnt) hat genau deshalb weiterhin zugeschlagen — daher
+    // hier alle vier einzeln auf 0 (unbegrenzt).
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .writeTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .build(),
+) {
 
     suspend fun erkennePerfum(apiKey: String, bildBytes: ByteArray, ean: String?): GeminiErgebnis =
         withContext(Dispatchers.IO) {
@@ -45,7 +72,7 @@ class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
                     .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
                     .build()
 
-                httpClient.newCall(request).execute().use { response ->
+                ausfuehrenAbbrechbar(request).use { response ->
                     val rohantwort = response.body.string()
                     if (!response.isSuccessful) {
                         return@withContext GeminiErgebnis.Fehler(
@@ -66,8 +93,15 @@ class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
     /** Lädt ein per Websuche gefundenes Stock-Bild herunter (für ImageStorage.speichereVonBytes). */
     suspend fun ladeBild(url: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(url).build()
-            httpClient.newCall(request).execute().use { response ->
+            val request = Request.Builder()
+                .url(url)
+                // Manche Bildhoster/CDNs blocken Downloads ohne "echten"
+                // Browser-User-Agent als Hotlink-Schutz — OkHttps Default
+                // ("okhttp/x.x") fällt darunter, ein Stock-Bild könnte sonst
+                // trotz gültiger URL nie ankommen.
+                .header("User-Agent", USER_AGENT)
+                .build()
+            ausfuehrenAbbrechbar(request).use { response ->
                 if (!response.isSuccessful) return@withContext null
                 response.body.bytes()
             }
@@ -75,6 +109,27 @@ class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
             null
         }
     }
+
+    /**
+     * Wie `httpClient.newCall(request).execute()`, aber echt abbrechbar: wird
+     * die aufrufende Coroutine abgebrochen (z. B. weil der Nutzer auf
+     * "Abbrechen" tippt), wird über `invokeOnCancellation` der zugehörige
+     * OkHttp-Call sofort gecancelt statt weiter im Hintergrund zu laufen.
+     */
+    private suspend fun ausfuehrenAbbrechbar(request: Request): Response =
+        suspendCancellableCoroutine { fortsetzung ->
+            val call = httpClient.newCall(request)
+            fortsetzung.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (fortsetzung.isActive) fortsetzung.resumeWith(Result.failure(e))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    if (fortsetzung.isActive) fortsetzung.resumeWith(Result.success(response)) else response.close()
+                }
+            })
+        }
 
     private fun baueRequestBody(bildBytes: ByteArray, ean: String?): JSONObject {
         val base64Bild = Base64.encodeToString(bildBytes, Base64.NO_WRAP)
@@ -169,7 +224,18 @@ class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
 
     private companion object {
         const val ENDPOINT_BASIS = "https://generativelanguage.googleapis.com/v1beta/models"
+        // gemini-3.5-flash (zurückgewechselt von gemini-2.5-flash, siehe Commit-Historie):
+        // Grounding mit Google-Suche kostet hier seit 5.1.2026 Geld (429 ohne aktives
+        // Billing), aber die 2.5er-Reihe ist inzwischen für neu erstellte API-Keys
+        // komplett gesperrt (404 "no longer available to new users", vorgezogen vor dem
+        // offiziellen Abschaltdatum 16.10.2026) — Grounding mit einem älteren Modell
+        // kostenlos zu bekommen ist damit kein gangbarer Weg mehr. Erfordert stattdessen
+        // ein Google-Cloud-Billing-Konto (pay-as-you-go, 5.000 grounded Anfragen/Monat
+        // weiterhin gratis inklusive, siehe ai.google.dev/gemini-api/docs/pricing).
         const val MODELL = "gemini-3.5-flash"
+
+        const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
 
         val PROMPT_VORLAGE = """
             Du bist ein Parfum-Experte. Analysiere das beigefügte Foto eines
