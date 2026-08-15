@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.update
 data class SettingsUiState(
     val apiKey: String = "",
     val geradeGespeichert: Boolean = false,
+    /** Nur In-Memory/Session-State — resettet beim Schließen der App (siehe Plan). */
+    val versionZeilenTaps: Int = 0,
 )
 
 class SettingsViewModel(private val apiKeyStore: GeminiApiKeyStore) : ViewModel() {
@@ -24,4 +26,6 @@ class SettingsViewModel(private val apiKeyStore: GeminiApiKeyStore) : ViewModel(
         if (key.isBlank()) apiKeyStore.clearKey() else apiKeyStore.setKey(key)
         _uiState.update { it.copy(geradeGespeichert = true) }
     }
+
+    fun versionZeileGetippt() = _uiState.update { it.copy(versionZeilenTaps = it.versionZeilenTaps + 1) }
 }

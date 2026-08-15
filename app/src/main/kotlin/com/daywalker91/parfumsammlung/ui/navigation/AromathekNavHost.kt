@@ -13,6 +13,7 @@ import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import com.daywalker91.parfumsammlung.ui.addflow.AddChoiceScreen
 import com.daywalker91.parfumsammlung.ui.collection.CollectionScreen
 import com.daywalker91.parfumsammlung.ui.detail.DetailScreen
+import com.daywalker91.parfumsammlung.ui.devoptions.DevOptionsScreen
 import com.daywalker91.parfumsammlung.ui.editor.PerfumeEditorScreen
 import com.daywalker91.parfumsammlung.ui.settings.SettingsScreen
 
@@ -26,6 +27,7 @@ object AromathekRoutes {
     const val ADD_CHOICE = "addChoice"
     const val EDITOR_VON_VORSCHLAG = "editorVonVorschlag"
     const val SETTINGS = "settings"
+    const val DEV_OPTIONS = "devOptions"
 
     fun detail(perfumeId: Long) = "detail/$perfumeId"
     fun editor(perfumeId: Long? = null) = "editor?$ARG_PERFUME_ID=${perfumeId ?: NEUES_PARFUM}"
@@ -41,6 +43,9 @@ fun AromathekNavHost(
             CollectionScreen(
                 repository = container.perfumeRepository,
                 firstLaunchPrefs = container.firstLaunchPrefs,
+                updateChecker = container.updateChecker,
+                apkDownloader = container.apkDownloader,
+                updateChannelStore = container.updateChannelStore,
                 onPerfumeClick = { navController.navigate(AromathekRoutes.detail(it)) },
                 onAddClick = { navController.navigate(AromathekRoutes.ADD_CHOICE) },
                 onSettingsClick = { navController.navigate(AromathekRoutes.SETTINGS) },
@@ -104,6 +109,15 @@ fun AromathekNavHost(
         composable(AromathekRoutes.SETTINGS) {
             SettingsScreen(
                 apiKeyStore = container.geminiApiKeyStore,
+                onBack = { navController.popBackStack() },
+                onDevOptionsClick = { navController.navigate(AromathekRoutes.DEV_OPTIONS) },
+            )
+        }
+        composable(AromathekRoutes.DEV_OPTIONS) {
+            DevOptionsScreen(
+                updateChecker = container.updateChecker,
+                apkDownloader = container.apkDownloader,
+                updateChannelStore = container.updateChannelStore,
                 onBack = { navController.popBackStack() },
             )
         }
