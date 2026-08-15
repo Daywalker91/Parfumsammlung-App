@@ -1,0 +1,200 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "74d498aa5fcc2b32b766fb84e71646e6",
+    "entities": [
+      {
+        "tableName": "perfume",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `marke` TEXT NOT NULL, `beschreibung` TEXT, `uvp` REAL, `status` TEXT NOT NULL, `flakongroesse` TEXT, `ean` TEXT, `verfuegbare_groessen` TEXT, `bild_pfad_stock` TEXT, `bild_pfad_eigen` TEXT, `aktives_bild` TEXT, `notiz` TEXT, `bewertung` INTEGER, `erstellt_am` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "marke",
+            "columnName": "marke",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "beschreibung",
+            "columnName": "beschreibung",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "uvp",
+            "columnName": "uvp",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "flakongroesse",
+            "columnName": "flakongroesse",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ean",
+            "columnName": "ean",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "verfuegbareGroessen",
+            "columnName": "verfuegbare_groessen",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bildPfadStock",
+            "columnName": "bild_pfad_stock",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bildPfadEigen",
+            "columnName": "bild_pfad_eigen",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "aktivesBild",
+            "columnName": "aktives_bild",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notiz",
+            "columnName": "notiz",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bewertung",
+            "columnName": "bewertung",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "erstelltAm",
+            "columnName": "erstellt_am",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "note",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `kategorie` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kategorie",
+            "columnName": "kategorie",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "perfume_note",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`perfumeId` INTEGER NOT NULL, `noteId` INTEGER NOT NULL, `position` TEXT NOT NULL, PRIMARY KEY(`perfumeId`, `noteId`), FOREIGN KEY(`perfumeId`) REFERENCES `perfume`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`noteId`) REFERENCES `note`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "perfumeId",
+            "columnName": "perfumeId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "noteId",
+            "columnName": "noteId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "perfumeId",
+            "noteId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_perfume_note_noteId",
+            "unique": false,
+            "columnNames": [
+              "noteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_perfume_note_noteId` ON `${TABLE_NAME}` (`noteId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "perfume",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "perfumeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "note",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "noteId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '74d498aa5fcc2b32b766fb84e71646e6')"
+    ]
+  }
+}

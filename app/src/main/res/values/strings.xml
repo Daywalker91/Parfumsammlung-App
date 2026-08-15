@@ -1,0 +1,100 @@
+<resources>
+    <string name="app_name">Aromathek</string>
+
+    <string name="hinzufuegen">Hinzufügen</string>
+    <string name="entfernen">Entfernen</string>
+    <string name="bearbeiten">Bearbeiten</string>
+    <string name="loeschen">Löschen</string>
+    <string name="abbrechen">Abbrechen</string>
+    <string name="zurueck">Zurück</string>
+    <string name="speichern">Speichern</string>
+
+    <string name="tab_sammlung">Sammlung (%d)</string>
+    <string name="tab_wunschliste">Wunschliste (%d)</string>
+    <string name="leere_sammlung">Noch keine Parfums in der Sammlung.</string>
+    <string name="leere_wunschliste">Die Wunschliste ist noch leer.</string>
+
+    <string name="neues_parfum">Neues Parfum</string>
+    <string name="parfum_bearbeiten">Parfum bearbeiten</string>
+
+    <string name="feld_name">Name</string>
+    <string name="feld_marke">Marke</string>
+    <string name="feld_beschreibung">Beschreibung</string>
+    <string name="feld_uvp">UVP (€)</string>
+    <string name="feld_flakongroesse">Flakongröße</string>
+    <string name="feld_ean">EAN</string>
+    <string name="feld_verfuegbare_groessen">Verfügbare Größen</string>
+    <string name="feld_notiz">Notiz</string>
+    <string name="feld_bewertung">Bewertung</string>
+
+    <string name="status_besitzt">Besitze ich</string>
+    <string name="status_wunschliste">Wunschliste</string>
+
+    <string name="duftpyramide">Duftpyramide</string>
+    <string name="note_hinzufuegen">Note</string>
+    <string name="position_kopf">Kopfnote</string>
+    <string name="position_herz">Herznote</string>
+    <string name="position_basis">Basisnote</string>
+
+    <string name="loeschen_bestaetigen_titel">Parfum löschen?</string>
+    <string name="loeschen_bestaetigen_text">„%1$s\" von %2$s wird endgültig gelöscht.</string>
+
+    <string name="duplikat_titel">Bereits vorhanden</string>
+    <string name="duplikat_text">„%1$s\" von %2$s ist schon in der Sammlung. Was möchtest du tun?</string>
+    <string name="duplikat_aktualisieren">Vorhandenen Eintrag aktualisieren</string>
+    <string name="duplikat_neu_anlegen">Trotzdem neu anlegen</string>
+
+    <!-- Bildverwaltung (Phase 2) -->
+    <string name="foto">Foto</string>
+    <string name="eigenes_foto">Eigenes Foto</string>
+    <string name="stock_bild">Stock-Bild</string>
+    <string name="foto_aufnehmen">Foto aufnehmen</string>
+    <string name="aus_galerie_waehlen">Aus Galerie wählen</string>
+
+    <!-- Barcode-Scan (Phase 3) -->
+    <string name="barcode_scannen">Barcode scannen</string>
+    <string name="ean_erkannt">EAN erkannt: %s</string>
+    <string name="barcode_fehlgeschlagen">Barcode-Scan nicht verfügbar.</string>
+
+    <!-- Foto-Hinzufügen-Flow / Gemini (Phase 4) -->
+    <string name="parfum_hinzufuegen">Parfum hinzufügen</string>
+    <string name="manuell_eingeben">Manuell eingeben</string>
+    <string name="einstellungen">Einstellungen</string>
+    <string name="gemini_api_key">Gemini-API-Key</string>
+    <string name="gemini_key_erklaerung">Für die Foto-Erkennung wird ein eigener, kostenloser Gemini-API-Key benötigt (aistudio.google.com). Der Key wird ausschließlich verschlüsselt auf diesem Gerät gespeichert und nirgendwo sonst hinterlegt.</string>
+    <string name="gespeichert">Gespeichert.</string>
+
+    <string name="hinweis_kein_api_key_titel">Kein API-Key hinterlegt</string>
+    <string name="hinweis_kein_api_key_text">Foto-Erkennung braucht einen Gemini-API-Key (Einstellungen → Gemini-API-Key). Ohne Key bleibt nur die manuelle Eingabe — das Foto wird dabei trotzdem übernommen.</string>
+    <string name="hinweis_offline_titel">Keine Internetverbindung</string>
+    <string name="hinweis_offline_text">Die Foto-Erkennung braucht eine Internetverbindung. Das Foto bleibt erhalten — du kannst die Angaben auch ohne Netz manuell ergänzen.</string>
+    <string name="hinweis_nicht_genug_daten_titel">Nicht genug Daten gefunden</string>
+    <string name="hinweis_nicht_genug_daten_text">Zu diesem Parfum konnten keine verlässlichen Informationen gefunden werden (z. B. bei seltenen Nischenprodukten). Das Foto bleibt erhalten — bitte die Angaben manuell ergänzen, oder vorher einen Barcode-Scan als zweite Erkennungsquelle versuchen.</string>
+    <string name="hinweis_fehler_titel">Etwas ist schiefgelaufen</string>
+
+    <!-- Datenschutz-Hinweis -->
+    <string name="datenschutz_hinweis_titel">Kurzer Hinweis</string>
+    <string name="datenschutz_hinweis_text">Fotos, die du zur Erkennung nutzt, werden an Google (Gemini-API) übertragen — mit deinem eigenen, selbst hinterlegten API-Key. Ohne Foto-Erkennung (rein manuelle Nutzung) verlässt nichts dein Gerät.</string>
+    <string name="verstanden">Verstanden</string>
+
+    <!-- Self-Update (Phase 5) -->
+    <string name="update_verfuegbar_titel">Update verfügbar (%s)</string>
+    <string name="update_verfuegbar_text">Eine neue Version ist verfügbar. Jetzt herunterladen?</string>
+    <string name="update_verfuegbar_experimental_text">Eine neue Experimental-Version ist verfügbar. Diese Version wurde noch nicht als stabil markiert. Jetzt herunterladen?</string>
+    <string name="update_laedt_herunter">Wird heruntergeladen …</string>
+    <string name="update_bereit_text">Heruntergeladen — bereit zur Installation.</string>
+    <string name="update_herunterladen">Herunterladen</string>
+    <string name="update_installieren">Installieren</string>
+    <string name="spaeter">Später</string>
+    <string name="kein_update_verfuegbar">Kein Update verfügbar — du hast die neueste Version.</string>
+
+    <!-- Entwickler-Optionen (Phase 5) -->
+    <string name="version_anzeige">Version %1$s (%2$d)</string>
+    <string name="entwickler_optionen_aktiviert">Entwickler-Optionen aktiviert.</string>
+    <string name="entwickler_optionen">Entwickler-Optionen</string>
+    <string name="update_kanal">Update-Kanal</string>
+    <string name="kanal_stable">Stable</string>
+    <string name="kanal_experimental">Experimental</string>
+    <string name="update_kanal_erklaerung">Stable prüft nur reguläre GitHub-Releases. Experimental bezieht zusätzlich Pre-Releases mit ein. Diese Einstellung bleibt dauerhaft gespeichert, unabhängig davon, ob dieses Menü gerade sichtbar ist.</string>
+    <string name="nach_updates_suchen">Nach Updates suchen</string>
+</resources>

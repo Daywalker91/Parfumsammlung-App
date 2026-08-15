@@ -1,0 +1,5 @@
+<resources>
+    <!-- Gedecktes Amber/Bernstein — passt zum Parfum-Thema, dient als
+         Adaptive-Icon-Hintergrund und Basis für spätere Theming-Arbeit. -->
+    <color name="ic_launcher_background">#6B4E3D</color>
+</resources>

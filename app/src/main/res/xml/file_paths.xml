@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Temporäres Ziel für Kamera-Aufnahmen, bevor sie komprimiert in den
+         permanenten App-Speicher (files/images) übernommen werden. -->
+    <cache-path name="camera_capture" path="images/" />
+    <files-path name="stored_images" path="images/" />
+    <!-- Heruntergeladene Update-APKs, bevor der Installer sie übernimmt. -->
+    <cache-path name="updates" path="updates/" />
+</paths>
