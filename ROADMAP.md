@@ -50,6 +50,8 @@ Modell: `gemini-3.5-flash`. Settings-Screen (API-Key speichern/lesen über Encry
 
 Self-Update und Entwickler-Optionen live gegen die echte GitHub-API des Repos verifiziert (Stable- und Experimental-Kanal, beide korrekt „kein Update" bei noch nicht existierenden Releases, kein Crash). Download/Installations-Pfad selbst ungetestet, da noch kein Release zum Herunterladen existiert — das braucht sowieso erst den Signing-Keystore, um über die CI-Pipeline etwas zu veröffentlichen.
 
+**Wichtige Randnotiz (2026-08-15):** `Stable` ist der tatsächliche Default-Branch dieses Repos (nicht `main`) — bis hierhin lief die gesamte Arbeit nur auf `Experimental`, `Stable` hatte nie den Workflow oder den App-Code gesehen, weshalb GitHub Actions „keine Workflows" anzeigte. Gelöst durch Merge `Experimental` → `Stable`. Der Push-Trigger auf `Stable` ist aktuell **absichtlich auskommentiert** (nur `workflow_dispatch` aktiv) — der erste echte Stable-Release passiert erst, wenn der Push-Trigger in `.github/workflows/build-release.yml` wieder aktiviert wird oder der Workflow manuell über „Run workflow" gestartet wird (beides erzeugt einen echten, öffentlichen, signierten Release).
+
 **Warum jetzt:** Erst sinnvoll, wenn es eine Version gibt, die den Namen „Release" verdient — vorher wäre es Distributions-Infrastruktur für eine leere App.
 
 ## Phase 6 — Komfort
