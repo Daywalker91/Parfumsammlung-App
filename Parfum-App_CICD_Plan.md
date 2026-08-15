@@ -111,7 +111,7 @@ jobs:
 
 ## Vorbereitung nötig
 
-- **Signing-Keystore** als Base64-kodiertes GitHub Secret hinterlegen (`SIGNING_KEY`), plus `KEY_ALIAS`, `KEYSTORE_PASSWORD`, `KEY_PASSWORD` als weitere Secrets — Keystore-Datei selbst landet nie im Repo
+- ~~Signing-Keystore als Base64-kodiertes GitHub Secret hinterlegen~~ → erledigt (2026-08-15). Release-Keystore erzeugt (RSA 4096, PKCS12, gültig bis 2056), lokal unter `E:\day_w\Android\keystore\` abgelegt (außerhalb des Repos, siehe `WICHTIG-BACKUP-LESEN.txt` dort für Backup-Hinweise). Alle vier Secrets (`SIGNING_KEY`, `KEY_ALIAS`, `KEYSTORE_PASSWORD`, `KEY_PASSWORD`) sind im Repo hinterlegt. PKCS12 unterstützt keine getrennten Speicher-/Schlüssel-Passwörter — `KEY_PASSWORD` ist deshalb bewusst identisch mit `KEYSTORE_PASSWORD`.
 - ~~Versionierung aktuell über `github.run_number`~~ → geklärt, siehe Abschnitt „Versionierung" oben
 
 ---
@@ -129,4 +129,4 @@ Damit spiegelt der App-seitige Kanal-Umschalter genau die hier beschriebene Bran
 
 ## Offene Punkte / spätere Entscheidungen
 
-- Initiale Erzeugung des Signing-Keystores (`keytool`) und dessen sichere Aufbewahrung (Verlust = App kann sich nie wieder selbst updaten, siehe Hauptplan) — muss vor dem ersten Release geklärt sein, keine Eile für den Projektstart
+- ~~Initiale Erzeugung des Signing-Keystores und dessen sichere Aufbewahrung~~ → erledigt (2026-08-15), siehe „Vorbereitung nötig" oben. **Wichtig:** die Backup-Verantwortung liegt jetzt beim Nutzer — `E:\day_w\Android\keystore\` sollte extern gesichert werden (Passwort-Manager o. ä.), sonst bleibt bei Festplattenverlust nur noch die Kopie der Secrets in GitHub (die selbst write-only sind, also auch keine Wiederherstellung des Passworts ermöglichen).

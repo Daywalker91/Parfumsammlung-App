@@ -42,9 +42,9 @@ Modell: `gemini-3.5-flash`. Settings-Screen (API-Key speichern/lesen über Encry
 
 **Warum erst jetzt:** Komplexestes und riskantestes Stück (externe API, JSON-Schema-Design, Netzwerk-Fehlerfälle) — auf einem bereits laufenden, getesteten Fundament aufsetzen statt gleichzeitig UI und Gemini-Integration zu debuggen.
 
-## Phase 5 — Distribution (teilweise fertig, 2026-08-15)
+## Phase 5 — Distribution ✅ fertig (2026-08-15)
 - [x] Datenschutz-Hinweis (Erststart + Settings) — vorgezogen, kam natürlich mit dem Settings-Screen aus Phase 4 mit
-- [ ] Signing-Keystore erzeugen + als GitHub Secrets hinterlegen — **noch offen, mit Nutzer abzustimmen** (sicherheitskritisch: Verlust = App kann sich nie wieder selbst updaten)
+- [x] Signing-Keystore erzeugen + als GitHub Secrets hinterlegt (RSA 4096, gültig bis 2056; lokale Kopie unter `E:\day_w\Android\keystore\`, dort unbedingt Backup-Hinweise in `WICHTIG-BACKUP-LESEN.txt` beachten)
 - [x] Self-Update-Mechanismus (Versions-Check, Download, Install-Intent)
 - [x] Entwickler-Optionen (10×-Tap, Stable/Experimental-Umschalter)
 
