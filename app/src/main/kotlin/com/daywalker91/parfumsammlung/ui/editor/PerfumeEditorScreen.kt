@@ -1,6 +1,8 @@
 package com.daywalker91.parfumsammlung.ui.editor
 
+import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -39,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -62,6 +67,8 @@ import com.daywalker91.parfumsammlung.data.NotenEingabe
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
+import com.daywalker91.parfumsammlung.data.gemini.GeminiService
 import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +77,8 @@ fun PerfumeEditorScreen(
     perfumeId: Long?,
     repository: PerfumeRepository,
     imageStorage: ImageStorage,
+    geminiService: GeminiService,
+    apiKeyStore: GeminiApiKeyStore,
     onSaved: () -> Unit,
     onBack: () -> Unit,
     initialBildPfadEigen: String? = null,
@@ -81,16 +90,24 @@ fun PerfumeEditorScreen(
         factory = viewModelFactory {
             initializer {
                 PerfumeEditorViewModel(
-                    perfumeId, repository, imageStorage, initialBildPfadEigen, initialBildPfadStock, vorschlag, initialEan,
+                    perfumeId, repository, imageStorage, geminiService, apiKeyStore,
+                    initialBildPfadEigen, initialBildPfadStock, vorschlag, initialEan,
                 )
             }
         },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     if (uiState.gespeichert) {
         onSaved()
         return
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.aktualisierungsHinweis.collect { hinweis ->
+            Toast.makeText(context, aktualisierungsHinweisText(context, hinweis), Toast.LENGTH_SHORT).show()
+        }
     }
 
     Scaffold(
@@ -156,6 +173,21 @@ fun PerfumeEditorScreen(
                 onAktivesBildGeaendert = viewModel::aktivesBildGesetzt,
                 onBildDrehen = viewModel::bildDrehen,
             )
+
+            // Gemini-Antworten sind nicht deterministisch — ein zweiter
+            // Versuch mit demselben Foto kann andere/vollständigere Daten
+            // liefern. Braucht dasselbe eigene Foto wie die ursprüngliche
+            // Erkennung, deshalb nur sichtbar wenn eins vorhanden ist.
+            if (uiState.bildPfadEigen != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = viewModel::datenAktualisieren, enabled = !uiState.aktualisierungLaeuft) {
+                        Text(stringResource(R.string.daten_aktualisieren))
+                    }
+                    if (uiState.aktualisierungLaeuft) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
 
             OutlinedTextField(
                 value = uiState.beschreibung,
@@ -393,6 +425,19 @@ private fun NotenEditor(
             )
         }
     }
+}
+
+/** Nicht-@Composable, da innerhalb eines LaunchedEffect (Coroutine) aufgerufen —
+ * dort ist stringResource() nicht erlaubt, context.getString() aber schon. */
+private fun aktualisierungsHinweisText(context: Context, hinweis: AktualisierungsHinweis): String = when (hinweis) {
+    AktualisierungsHinweis.KeinFoto -> context.getString(R.string.hinweis_aktualisieren_kein_foto)
+    AktualisierungsHinweis.KeinApiKey -> context.getString(R.string.hinweis_kein_api_key_titel)
+    AktualisierungsHinweis.Offline -> context.getString(R.string.hinweis_offline_titel)
+    AktualisierungsHinweis.NichtGenugDaten -> context.getString(R.string.hinweis_nicht_genug_daten_titel)
+    AktualisierungsHinweis.Erfolgreich -> context.getString(R.string.hinweis_aktualisierung_erfolgreich)
+    AktualisierungsHinweis.KeinStockBildGefunden -> context.getString(R.string.hinweis_kein_stock_bild_gefunden)
+    AktualisierungsHinweis.StockBildDownloadFehlgeschlagen -> context.getString(R.string.hinweis_stock_bild_download_fehlgeschlagen)
+    is AktualisierungsHinweis.Fehler -> hinweis.nachricht
 }
 
 @Composable

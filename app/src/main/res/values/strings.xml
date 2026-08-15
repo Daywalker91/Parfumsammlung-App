@@ -53,6 +53,9 @@
     <string name="foto_drehen">Drehen</string>
     <string name="hinweis_kein_stock_bild_gefunden">Kein Stock-Bild über die Websuche gefunden.</string>
     <string name="hinweis_stock_bild_download_fehlgeschlagen">Stock-Bild-URL gefunden, aber Download fehlgeschlagen.</string>
+    <string name="daten_aktualisieren">Daten aktualisieren</string>
+    <string name="hinweis_aktualisieren_kein_foto">Kein eigenes Foto vorhanden — dafür wird eins gebraucht.</string>
+    <string name="hinweis_aktualisierung_erfolgreich">Daten aktualisiert.</string>
 
     <!-- Barcode-Scan (Phase 3) -->
     <string name="barcode_scannen">Barcode scannen</string>

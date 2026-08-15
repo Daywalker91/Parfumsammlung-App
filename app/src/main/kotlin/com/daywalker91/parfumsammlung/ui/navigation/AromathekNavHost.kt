@@ -78,6 +78,8 @@ fun AromathekNavHost(
                 perfumeId = perfumeId.takeIf { it != NEUES_PARFUM },
                 repository = container.perfumeRepository,
                 imageStorage = container.imageStorage,
+                geminiService = container.geminiService,
+                apiKeyStore = container.geminiApiKeyStore,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )
@@ -99,6 +101,8 @@ fun AromathekNavHost(
                 perfumeId = null,
                 repository = container.perfumeRepository,
                 imageStorage = container.imageStorage,
+                geminiService = container.geminiService,
+                apiKeyStore = container.geminiApiKeyStore,
                 initialBildPfadEigen = payload?.bildPfadEigen,
                 initialBildPfadStock = payload?.bildPfadStock,
                 vorschlag = payload?.vorschlag,

@@ -10,15 +10,36 @@ import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
+import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
+import com.daywalker91.parfumsammlung.data.gemini.GeminiService
 import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
+import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Ergebnis eines "Daten aktualisieren"-Versuchs — analog zu AddHinweis im Foto-Flow,
+ * aber als einmaliges Toast-Ereignis statt blockierendem Dialog (der Editor-Inhalt
+ * bleibt ja nutzbar, das betrifft nur den Aktualisierungs-Versuch selbst). */
+sealed interface AktualisierungsHinweis {
+    data object KeinFoto : AktualisierungsHinweis
+    data object KeinApiKey : AktualisierungsHinweis
+    data object Offline : AktualisierungsHinweis
+    data object NichtGenugDaten : AktualisierungsHinweis
+    data object Erfolgreich : AktualisierungsHinweis
+    data object KeinStockBildGefunden : AktualisierungsHinweis
+    data object StockBildDownloadFehlgeschlagen : AktualisierungsHinweis
+    data class Fehler(val nachricht: String) : AktualisierungsHinweis
+}
 
 data class PerfumeEditorUiState(
     val name: String = "",
@@ -39,12 +60,15 @@ data class PerfumeEditorUiState(
     val markeFehler: Boolean = false,
     val duplikat: Perfume? = null,
     val gespeichert: Boolean = false,
+    val aktualisierungLaeuft: Boolean = false,
 )
 
 class PerfumeEditorViewModel(
     private val perfumeId: Long?,
     private val repository: PerfumeRepository,
     private val imageStorage: ImageStorage,
+    private val geminiService: GeminiService,
+    private val apiKeyStore: GeminiApiKeyStore,
     /** Vom Foto-Hinzufügen-Flow: das für die Erkennung genutzte Foto, schon lokal gespeichert. */
     initialBildPfadEigen: String? = null,
     /** Vom Foto-Hinzufügen-Flow: per Websuche gefundenes, schon lokal gespeichertes Stock-Bild. */
@@ -73,6 +97,9 @@ class PerfumeEditorViewModel(
         ),
     )
     val uiState: StateFlow<PerfumeEditorUiState> = _uiState.asStateFlow()
+
+    private val _aktualisierungsHinweis = MutableSharedFlow<AktualisierungsHinweis>(extraBufferCapacity = 1)
+    val aktualisierungsHinweis: SharedFlow<AktualisierungsHinweis> = _aktualisierungsHinweis.asSharedFlow()
 
     init {
         perfumeId?.let { id ->
@@ -158,6 +185,86 @@ class PerfumeEditorViewModel(
                 when (aktiv) {
                     AktivesBild.EIGEN -> it.copy(bildPfadEigen = neuerPfad)
                     AktivesBild.STOCK -> it.copy(bildPfadStock = neuerPfad)
+                }
+            }
+        }
+    }
+
+    /**
+     * Fragt Gemini erneut nach Beschreibung/UVP/Größen/Duftpyramide/Stock-Bild
+     * für das aktuelle eigene Foto ab und überschreibt die entsprechenden
+     * Felder. Braucht ein eigenes Foto (dasselbe wie beim ursprünglichen
+     * Erkennen) — Name/Marke/Notiz/Bewertung/Status bleiben unangetastet.
+     * Grund: Gemini-Antworten sind nicht deterministisch, ein zweiter Versuch
+     * kann andere (oder vollständigere) Daten liefern als der erste.
+     */
+    fun datenAktualisieren() {
+        val state = _uiState.value
+        val bildPfad = state.bildPfadEigen
+        if (bildPfad == null) {
+            _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.KeinFoto)
+            return
+        }
+        viewModelScope.launch {
+            val apiKey = apiKeyStore.getKey()
+            if (apiKey == null) {
+                _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.KeinApiKey)
+                return@launch
+            }
+            _uiState.update { it.copy(aktualisierungLaeuft = true) }
+            val bildBytes = withContext(Dispatchers.IO) { File(bildPfad).readBytes() }
+            when (val ergebnis = geminiService.erkennePerfum(apiKey, bildBytes, state.ean.trim().ifBlank { null })) {
+                is GeminiErgebnis.Erfolg -> {
+                    val vorschlag = ergebnis.vorschlag
+                    val stockUrl = vorschlag.stockBildUrl
+                    val neuesBildPfadStock = stockUrl?.let { url ->
+                        geminiService.ladeBild(url)?.let { bytes ->
+                            withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) }
+                        }
+                    }
+                    // Altes Stock-Bild ersetzen statt anhäufen, wenn ein neues gefunden wurde.
+                    if (neuesBildPfadStock != null) {
+                        withContext(Dispatchers.IO) { imageStorage.loesche(state.bildPfadStock) }
+                    }
+                    _uiState.update {
+                        it.copy(
+                            beschreibung = vorschlag.beschreibung ?: it.beschreibung,
+                            uvp = vorschlag.uvp?.toString() ?: it.uvp,
+                            flakongroesse = vorschlag.flakongroesse ?: it.flakongroesse,
+                            verfuegbareGroessen = vorschlag.verfuegbareGroessen ?: it.verfuegbareGroessen,
+                            noten = if (vorschlag.notenKopf.isEmpty() && vorschlag.notenHerz.isEmpty() && vorschlag.notenBasis.isEmpty()) {
+                                it.noten
+                            } else {
+                                vorschlag.notenKopf.map { n -> NotenEingabe(n, Position.KOPF) } +
+                                    vorschlag.notenHerz.map { n -> NotenEingabe(n, Position.HERZ) } +
+                                    vorschlag.notenBasis.map { n -> NotenEingabe(n, Position.BASIS) }
+                            },
+                            bildPfadStock = neuesBildPfadStock ?: it.bildPfadStock,
+                            aktualisierungLaeuft = false,
+                        )
+                    }
+                    _aktualisierungsHinweis.tryEmit(
+                        when {
+                            stockUrl == null -> AktualisierungsHinweis.KeinStockBildGefunden
+                            neuesBildPfadStock == null -> AktualisierungsHinweis.StockBildDownloadFehlgeschlagen
+                            else -> AktualisierungsHinweis.Erfolgreich
+                        },
+                    )
+                }
+
+                GeminiErgebnis.NichtGenugDaten -> {
+                    _uiState.update { it.copy(aktualisierungLaeuft = false) }
+                    _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.NichtGenugDaten)
+                }
+
+                GeminiErgebnis.Offline -> {
+                    _uiState.update { it.copy(aktualisierungLaeuft = false) }
+                    _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.Offline)
+                }
+
+                is GeminiErgebnis.Fehler -> {
+                    _uiState.update { it.copy(aktualisierungLaeuft = false) }
+                    _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.Fehler(ergebnis.nachricht))
                 }
             }
         }
