@@ -3,6 +3,7 @@ package com.daywalker91.parfumsammlung.data.gemini
 import android.util.Base64
 import java.io.IOException
 import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -34,7 +35,18 @@ sealed interface GeminiErgebnis {
  * JSON angewiesen und die Antwort robust geparst (Markdown-Codefences etc.
  * werden toleriert).
  */
-class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
+class GeminiService(
+    // Die OkHttp-Standard-Timeouts (10s Connect/Read/Write) reichen für Gemini
+    // nicht aus: ein Grounded-Request (Bildanalyse + echte Websuche, siehe
+    // baueRequestBody) kann spürbar länger als 10s dauern, bevor die Antwort
+    // vollständig zurückkommt — führte real zu "timeout" statt einem Ergebnis.
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(90, TimeUnit.SECONDS)
+        .build(),
+) {
 
     suspend fun erkennePerfum(apiKey: String, bildBytes: ByteArray, ean: String?): GeminiErgebnis =
         withContext(Dispatchers.IO) {
