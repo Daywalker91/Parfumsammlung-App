@@ -13,6 +13,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Der Standard-GITHUB_TOKEN hat je nach Repo-Einstellung nur Lesezugriff;
+    # zum Erstellen eines Release + Hochladen der APK wird Schreibzugriff auf
+    # Contents gebraucht (sonst: "Resource not accessible by integration").
+    permissions:
+      contents: write
     # Guard: verhindert einen versehentlichen (Pre-)Release, falls workflow_dispatch
     # manuell von einem anderen Branch als Stable/Experimental ausgelöst wird.
     if: github.ref_name == 'Stable' || github.ref_name == 'Experimental'
