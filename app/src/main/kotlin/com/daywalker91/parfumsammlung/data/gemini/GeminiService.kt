@@ -169,13 +169,15 @@ class GeminiService(private val httpClient: OkHttpClient = OkHttpClient()) {
 
     private companion object {
         const val ENDPOINT_BASIS = "https://generativelanguage.googleapis.com/v1beta/models"
-        // gemini-2.5-flash statt gemini-3.5-flash: Grounding mit Google-Suche ist bei
-        // den 3.x-Modellen nur noch im bezahlten Tarif enthalten (führte zu 429 bei
-        // jedem echten Request mit einem reinen Free-Tier-Key). Bei 2.5-Modellen ist
-        // Grounding weiterhin kostenlos bis 500 Anfragen/Tag enthalten — für den
-        // privaten Gebrauch hier mehr als ausreichend, ohne Rechnungskonto nötig zu
-        // haben. Siehe ai.google.dev/gemini-api/docs/pricing.
-        const val MODELL = "gemini-2.5-flash"
+        // gemini-3.5-flash (zurückgewechselt von gemini-2.5-flash, siehe Commit-Historie):
+        // Grounding mit Google-Suche kostet hier seit 5.1.2026 Geld (429 ohne aktives
+        // Billing), aber die 2.5er-Reihe ist inzwischen für neu erstellte API-Keys
+        // komplett gesperrt (404 "no longer available to new users", vorgezogen vor dem
+        // offiziellen Abschaltdatum 16.10.2026) — Grounding mit einem älteren Modell
+        // kostenlos zu bekommen ist damit kein gangbarer Weg mehr. Erfordert stattdessen
+        // ein Google-Cloud-Billing-Konto (pay-as-you-go, 5.000 grounded Anfragen/Monat
+        // weiterhin gratis inklusive, siehe ai.google.dev/gemini-api/docs/pricing).
+        const val MODELL = "gemini-3.5-flash"
 
         val PROMPT_VORLAGE = """
             Du bist ein Parfum-Experte. Analysiere das beigefügte Foto eines
