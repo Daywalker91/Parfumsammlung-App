@@ -114,6 +114,7 @@ fun AromathekNavHost(
         composable(AromathekRoutes.SETTINGS) {
             SettingsScreen(
                 apiKeyStore = container.geminiApiKeyStore,
+                backupManager = container.backupManager,
                 onBack = { navController.popBackStack() },
                 onDevOptionsClick = { navController.navigate(AromathekRoutes.DEV_OPTIONS) },
             )

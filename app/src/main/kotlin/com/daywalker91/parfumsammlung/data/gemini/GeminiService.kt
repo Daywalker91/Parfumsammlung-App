@@ -239,10 +239,23 @@ class GeminiService(
 
         val PROMPT_VORLAGE = """
             Du bist ein Parfum-Experte. Analysiere das beigefügte Foto eines
-            Parfum-Flakons und identifiziere das Produkt. Nutze bei Bedarf eine
-            Websuche, um aktuelle und korrekte Informationen zu finden
-            (unverbindliche Preisempfehlung, verfügbare Flakongrößen,
-            Duftpyramide, ein offizielles Produktbild).
+            Parfum-Flakons genau (Markenlogo, Produktname auf dem Etikett,
+            Flakonform, Verschlussfarbe) und identifiziere zuerst Marke und
+            exakten Produktnamen.
+
+            Führe danach IMMER mindestens eine Websuche durch, um deine
+            Vermutung zu verifizieren und aktuelle Zusatzinformationen zu
+            finden (unverbindliche Preisempfehlung, verfügbare Flakongrößen,
+            Duftpyramide, ein offizielles Produktbild) — verlass dich nicht
+            nur auf Trainingswissen, das kann veraltet sein. Bevorzuge dabei
+            etablierte Duft-Datenbanken (z. B. Parfumo, Fragrantica) und
+            offizielle Marken-/Händlerseiten gegenüber unklaren Quellen.
+
+            Für "stockBildUrl" gilt eine harte Regel: nur eine URL eintragen,
+            die DIREKT auf eine Bilddatei zeigt (endet auf .jpg/.jpeg/.png/
+            .webp) und tatsächlich in einem Suchergebnis gesehen wurde —
+            niemals eine vermutete/konstruierte URL. Im Zweifel lieber null
+            als eine URL, die nicht wirklich existiert.
 
             Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt (kein
             Markdown, kein Fließtext davor oder danach) exakt in diesem Format:
@@ -256,13 +269,16 @@ class GeminiService(
               "notenKopf": string[] (Kopfnoten der Duftpyramide),
               "notenHerz": string[] (Herznoten der Duftpyramide),
               "notenBasis": string[] (Basisnoten der Duftpyramide),
-              "stockBildUrl": string oder null (URL zu einem offiziellen Produktfoto, falls über die Websuche gefunden),
-              "nichtGenugDaten": boolean (true, falls das Parfum nicht sicher identifizierbar ist)
+              "stockBildUrl": string oder null (direkte Bild-URL, siehe Regel oben),
+              "nichtGenugDaten": boolean (true NUR falls Marke UND Name nicht sicher identifizierbar sind)
             }
 
-            Wenn du das Parfum nicht sicher identifizieren kannst, setze
-            "nichtGenugDaten" auf true und lasse die übrigen Felder auf
-            null/leer — rate nicht.
+            Wenn Marke und Name sicher feststehen, aber einzelne andere Felder
+            (z. B. Duftpyramide, UVP) über die Websuche nicht auffindbar sind,
+            setze NICHT "nichtGenugDaten" auf true — lass diese Felder einfach
+            auf null/leer. "nichtGenugDaten" gilt ausschließlich für den Fall,
+            dass das Parfum selbst nicht identifiziert werden kann. Rate nie —
+            weder beim Namen noch bei der stockBildUrl.
         """.trimIndent()
     }
 }

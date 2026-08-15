@@ -24,6 +24,10 @@ interface PerfumeDao {
     @Query("SELECT * FROM perfume WHERE status = :status ORDER BY name ASC")
     fun observeByStatus(status: PerfumeStatus): Flow<List<Perfume>>
 
+    /** Für den Backup-Export (Phase 6) — einmaliger Snapshot statt Flow, unabhängig vom Status. */
+    @Query("SELECT * FROM perfume ORDER BY name ASC")
+    suspend fun getAll(): List<Perfume>
+
     @Query("SELECT * FROM perfume WHERE id = :id")
     fun observeById(id: Long): Flow<Perfume?>
 
