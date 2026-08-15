@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -48,12 +49,20 @@ import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
 import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
+import com.daywalker91.parfumsammlung.data.update.ApkDownloader
+import com.daywalker91.parfumsammlung.data.update.UpdateChannelStore
+import com.daywalker91.parfumsammlung.data.update.UpdateChecker
+import com.daywalker91.parfumsammlung.ui.update.UpdateDialog
+import com.daywalker91.parfumsammlung.ui.update.UpdateViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CollectionScreen(
     repository: PerfumeRepository,
     firstLaunchPrefs: FirstLaunchPrefs,
+    updateChecker: UpdateChecker,
+    apkDownloader: ApkDownloader,
+    updateChannelStore: UpdateChannelStore,
     onPerfumeClick: (Long) -> Unit,
     onAddClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -64,6 +73,14 @@ fun CollectionScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var ausgewaehlterTab by remember { mutableIntStateOf(0) }
     var zeigeDatenschutzHinweis by remember { mutableStateOf(!firstLaunchPrefs.datenschutzGesehen()) }
+
+    val updateViewModel: UpdateViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer { UpdateViewModel(updateChecker, apkDownloader, updateChannelStore) }
+        },
+    )
+    val updateUiState by updateViewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { updateViewModel.automatischPruefen() }
 
     Scaffold(
         topBar = {
@@ -128,6 +145,8 @@ fun CollectionScreen(
             },
         )
     }
+
+    UpdateDialog(uiState = updateUiState, viewModel = updateViewModel)
 }
 
 @Composable

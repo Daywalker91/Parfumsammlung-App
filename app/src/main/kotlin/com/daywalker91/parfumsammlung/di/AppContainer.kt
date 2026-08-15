@@ -7,6 +7,9 @@ import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import com.daywalker91.parfumsammlung.data.gemini.GeminiService
+import com.daywalker91.parfumsammlung.data.update.ApkDownloader
+import com.daywalker91.parfumsammlung.data.update.UpdateChannelStore
+import com.daywalker91.parfumsammlung.data.update.UpdateChecker
 
 /**
  * Sehr schlanke manuelle Dependency-Injection — bewusst kein Hilt/Dagger, um
@@ -27,4 +30,10 @@ class AppContainer(private val context: Context) {
     val geminiService: GeminiService by lazy { GeminiService() }
 
     val firstLaunchPrefs: FirstLaunchPrefs by lazy { FirstLaunchPrefs(context) }
+
+    val updateChecker: UpdateChecker by lazy { UpdateChecker() }
+
+    val apkDownloader: ApkDownloader by lazy { ApkDownloader(context) }
+
+    val updateChannelStore: UpdateChannelStore by lazy { UpdateChannelStore(context) }
 }

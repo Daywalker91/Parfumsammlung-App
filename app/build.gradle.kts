@@ -45,6 +45,9 @@ android {
 
     buildFeatures {
         compose = true
+        // Für BuildConfig.VERSION_CODE/VERSION_NAME im Self-Update-Mechanismus
+        // (Vergleich mit dem neuesten GitHub Release) — seit AGP 8 opt-in.
+        buildConfig = true
     }
 }
 

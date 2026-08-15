@@ -5,6 +5,8 @@
     <!-- Für den Barcode-Scan (ML Kit Code Scanner) und die Foto-Aufnahme -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Für die Installation heruntergeladener Updates (Self-Update-Mechanismus) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".AromathekApplication"

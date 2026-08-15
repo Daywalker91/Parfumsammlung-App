@@ -76,4 +76,25 @@
     <string name="datenschutz_hinweis_titel">Kurzer Hinweis</string>
     <string name="datenschutz_hinweis_text">Fotos, die du zur Erkennung nutzt, werden an Google (Gemini-API) übertragen — mit deinem eigenen, selbst hinterlegten API-Key. Ohne Foto-Erkennung (rein manuelle Nutzung) verlässt nichts dein Gerät.</string>
     <string name="verstanden">Verstanden</string>
+
+    <!-- Self-Update (Phase 5) -->
+    <string name="update_verfuegbar_titel">Update verfügbar (%s)</string>
+    <string name="update_verfuegbar_text">Eine neue Version ist verfügbar. Jetzt herunterladen?</string>
+    <string name="update_verfuegbar_experimental_text">Eine neue Experimental-Version ist verfügbar. Diese Version wurde noch nicht als stabil markiert. Jetzt herunterladen?</string>
+    <string name="update_laedt_herunter">Wird heruntergeladen …</string>
+    <string name="update_bereit_text">Heruntergeladen — bereit zur Installation.</string>
+    <string name="update_herunterladen">Herunterladen</string>
+    <string name="update_installieren">Installieren</string>
+    <string name="spaeter">Später</string>
+    <string name="kein_update_verfuegbar">Kein Update verfügbar — du hast die neueste Version.</string>
+
+    <!-- Entwickler-Optionen (Phase 5) -->
+    <string name="version_anzeige">Version %1$s (%2$d)</string>
+    <string name="entwickler_optionen_aktiviert">Entwickler-Optionen aktiviert.</string>
+    <string name="entwickler_optionen">Entwickler-Optionen</string>
+    <string name="update_kanal">Update-Kanal</string>
+    <string name="kanal_stable">Stable</string>
+    <string name="kanal_experimental">Experimental</string>
+    <string name="update_kanal_erklaerung">Stable prüft nur reguläre GitHub-Releases. Experimental bezieht zusätzlich Pre-Releases mit ein. Diese Einstellung bleibt dauerhaft gespeichert, unabhängig davon, ob dieses Menü gerade sichtbar ist.</string>
+    <string name="nach_updates_suchen">Nach Updates suchen</string>
 </resources>
