@@ -10,6 +10,7 @@ import com.daywalker91.parfumsammlung.data.gemini.GeminiService
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,7 +42,17 @@ class AddChoiceViewModel(
     private val _uiState = MutableStateFlow(AddChoiceUiState())
     val uiState: StateFlow<AddChoiceUiState> = _uiState.asStateFlow()
 
+    // Referenz auf den laufenden Erkennungs-Vorgang, damit "Abbrechen" ihn
+    // gezielt canceln kann (statt z. B. viewModelScope komplett zu canceln).
+    private var erkennungsJob: Job? = null
+
     fun eanErkannt(ean: String) = _uiState.update { it.copy(ean = ean) }
+
+    /** Bricht einen laufenden Foto-Erkennungsvorgang ab (kein Timeout mehr, siehe GeminiService). */
+    fun abbrechen() {
+        erkennungsJob?.cancel()
+        _uiState.update { it.copy(ladeVorgang = false) }
+    }
 
     fun hinweisSchliessen() = _uiState.update { it.copy(hinweis = null) }
 
@@ -57,7 +68,7 @@ class AddChoiceViewModel(
     fun trotzdemManuellFortfahren() = _uiState.update { it.copy(hinweis = null, navigiereZuEditor = true) }
 
     fun fotoVerarbeiten(uri: Uri) {
-        viewModelScope.launch {
+        erkennungsJob = viewModelScope.launch {
             _uiState.update { it.copy(ladeVorgang = true) }
 
             val bildPfadEigen = withContext(Dispatchers.IO) { imageStorage.speichereVonUri(uri) }

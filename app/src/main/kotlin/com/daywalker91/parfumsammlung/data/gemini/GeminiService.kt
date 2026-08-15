@@ -3,13 +3,16 @@ package com.daywalker91.parfumsammlung.data.gemini
 import android.util.Base64
 import java.io.IOException
 import java.net.UnknownHostException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -36,15 +39,17 @@ sealed interface GeminiErgebnis {
  * werden toleriert).
  */
 class GeminiService(
-    // Die OkHttp-Standard-Timeouts (10s Connect/Read/Write) reichen für Gemini
-    // nicht aus: ein Grounded-Request (Bildanalyse + echte Websuche, siehe
-    // baueRequestBody) kann spürbar länger als 10s dauern, bevor die Antwort
-    // vollständig zurückkommt — führte real zu "timeout" statt einem Ergebnis.
+    // Bewusst KEIN Timeout mehr (siehe callTimeout(0, ...) unten): ein
+    // Grounded-Request (Bildanalyse + echte Websuche, siehe baueRequestBody)
+    // kann je nach Google-Antwortzeit sehr unterschiedlich lange dauern —
+    // statt eines festen Zeitlimits, das mal zu kurz und mal unnötig lang
+    // ist, kann der Nutzer den Vorgang stattdessen manuell abbrechen (siehe
+    // AddChoiceViewModel.abbrechen). Damit das Abbrechen den Netzwerk-Call
+    // auch wirklich sofort stoppt (Coroutine-Abbruch ist kooperativ, ein
+    // blockierender execute()-Call würde ihn ignorieren), läuft die Anfrage
+    // über ausfuehrenAbbrechbar() statt über ein simples execute().
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(90, TimeUnit.SECONDS)
+        .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
         .build(),
 ) {
 
@@ -57,7 +62,7 @@ class GeminiService(
                     .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
                     .build()
 
-                httpClient.newCall(request).execute().use { response ->
+                ausfuehrenAbbrechbar(request).use { response ->
                     val rohantwort = response.body.string()
                     if (!response.isSuccessful) {
                         return@withContext GeminiErgebnis.Fehler(
@@ -79,7 +84,7 @@ class GeminiService(
     suspend fun ladeBild(url: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
-            httpClient.newCall(request).execute().use { response ->
+            ausfuehrenAbbrechbar(request).use { response ->
                 if (!response.isSuccessful) return@withContext null
                 response.body.bytes()
             }
@@ -87,6 +92,27 @@ class GeminiService(
             null
         }
     }
+
+    /**
+     * Wie `httpClient.newCall(request).execute()`, aber echt abbrechbar: wird
+     * die aufrufende Coroutine abgebrochen (z. B. weil der Nutzer auf
+     * "Abbrechen" tippt), wird über `invokeOnCancellation` der zugehörige
+     * OkHttp-Call sofort gecancelt statt weiter im Hintergrund zu laufen.
+     */
+    private suspend fun ausfuehrenAbbrechbar(request: Request): Response =
+        suspendCancellableCoroutine { fortsetzung ->
+            val call = httpClient.newCall(request)
+            fortsetzung.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (fortsetzung.isActive) fortsetzung.resumeWith(Result.failure(e))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    if (fortsetzung.isActive) fortsetzung.resumeWith(Result.success(response)) else response.close()
+                }
+            })
+        }
 
     private fun baueRequestBody(bildBytes: ByteArray, ean: String?): JSONObject {
         val base64Bild = Base64.encodeToString(bildBytes, Base64.NO_WRAP)
