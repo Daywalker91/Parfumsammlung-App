@@ -2,8 +2,12 @@ name: Build & Release
 
 # Siehe Parfum-App_CICD_Plan.md für die volle Erklärung des Branch-/Versionierungsmodells.
 on:
-  push:
-    branches: [Stable]
+  # TEMPORÄR deaktiviert: Push-Trigger würde bei jedem Push auf Stable sofort
+  # einen echten, öffentlichen Release bauen (inkl. Signierung). Erst wieder
+  # aktivieren, wenn ein absichtlicher erster Release gewünscht ist — siehe
+  # Parfum-App_CICD_Plan.md. Bis dahin nur manuell über workflow_dispatch.
+  # push:
+  #   branches: [Stable]
   workflow_dispatch:
 
 jobs:
