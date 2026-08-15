@@ -21,6 +21,9 @@ class PerfumeRepository(
 
     suspend fun getById(id: Long): Perfume? = perfumeDao.getById(id)
 
+    /** Für den Backup-Export (Phase 6) — alle Parfums unabhängig vom Status, einmaliger Snapshot. */
+    suspend fun getAll(): List<Perfume> = perfumeDao.getAll()
+
     fun observeNotesForPerfume(perfumeId: Long): Flow<List<NoteWithPosition>> =
         perfumeNoteDao.observeNotesForPerfume(perfumeId)
 

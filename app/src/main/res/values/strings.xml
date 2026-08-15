@@ -31,6 +31,14 @@
     <string name="status_wunschliste">Wunschliste</string>
 
     <string name="duftpyramide">Duftpyramide</string>
+
+    <!-- Detail-Screen-Tabs (Phase 7) -->
+    <string name="tab_info">Info</string>
+    <string name="tab_bewertung">Bewertung</string>
+    <string name="tab_preis">Preis</string>
+    <string name="keine_bewertung">Noch keine Bewertung vergeben.</string>
+    <string name="keine_angaben">Keine Angaben vorhanden.</string>
+
     <string name="note_hinzufuegen">Note</string>
     <string name="position_kopf">Kopfnote</string>
     <string name="position_herz">Herznote</string>
@@ -82,6 +90,16 @@
     <string name="datenschutz_hinweis_titel">Kurzer Hinweis</string>
     <string name="datenschutz_hinweis_text">Fotos, die du zur Erkennung nutzt, werden an Google (Gemini-API) übertragen — mit deinem eigenen, selbst hinterlegten API-Key. Ohne Foto-Erkennung (rein manuelle Nutzung) verlässt nichts dein Gerät.</string>
     <string name="verstanden">Verstanden</string>
+
+    <!-- Backup/Restore (Phase 6) -->
+    <string name="backup_titel">Backup</string>
+    <string name="backup_erklaerung">Sichert die komplette Sammlung (inkl. Bilder) als ZIP-Datei an einem Ort deiner Wahl, oder stellt sie aus einer zuvor gesicherten Datei wieder her. Bereits vorhandene Einträge (gleicher Name+Marke) werden beim Wiederherstellen übersprungen.</string>
+    <string name="backup_sichern">Sichern</string>
+    <string name="backup_wiederherstellen">Wiederherstellen</string>
+    <string name="backup_export_erfolgreich">Backup gespeichert.</string>
+    <string name="backup_export_fehlgeschlagen">Backup fehlgeschlagen.</string>
+    <string name="backup_import_erfolgreich">%1$d Parfums importiert, %2$d bereits vorhanden übersprungen.</string>
+    <string name="backup_import_fehlgeschlagen">Wiederherstellen fehlgeschlagen — ist das die richtige Backup-Datei?</string>
 
     <!-- Self-Update (Phase 5) -->
     <string name="update_verfuegbar_titel">Update verfügbar (%s)</string>

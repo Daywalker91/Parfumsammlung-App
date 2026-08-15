@@ -58,20 +58,22 @@ Self-Update und Entwickler-Optionen live gegen die echte GitHub-API des Repos ve
 
 **Warum jetzt:** Erst sinnvoll, wenn es eine Version gibt, die den Namen „Release" verdient — vorher wäre es Distributions-Infrastruktur für eine leere App.
 
-## Phase 6 — Komfort
-- [ ] DB-Export/Backup als ZIP
+## Phase 6 — Komfort ✅ fertig (2026-08-15)
+- [x] DB-Export/Backup als ZIP
+
+Neuer `BackupManager` (`data/backup/`): Export schreibt ein `daten.json`-Manifest (alle Parfums+Noten, Bildfelder als reine Dateinamen statt absoluter Pfade) plus die referenzierten Bilddateien unter `images/` in eine ZIP — bewusst kein Kopieren der rohen Room-DB-Datei, das JSON-Format ist robust gegenüber Pfadänderungen (z. B. nach Neuinstallation) und braucht keine Rücksicht auf offene DB-Connections. Speicherort per Storage-Access-Framework frei wählbar (`CreateDocument`/`OpenDocument`, keine zusätzliche Berechtigung nötig). Import überspringt bereits vorhandene Einträge (gleicher Name+Marke, derselbe Duplikat-Check wie beim manuellen Anlegen) — wiederholtes Einspielen ist damit gefahrlos. Buttons + Fortschritts-/Ergebnis-Toast im Settings-Screen. Lokal per `./gradlew compileDebugKotlin` verifiziert, nicht live auf einem Gerät durchgeklickt.
 
 **Warum zuletzt:** Reines Sicherheits-/Komfort-Feature, blockiert nichts anderes und betrifft niemanden, bis tatsächlich Daten da sind, die es wert sind, gesichert zu werden.
 
-## Phase 7 — Design-Überarbeitung (v2, noch nicht begonnen)
+## Phase 7 — Design-Überarbeitung ✅ fertig (2026-08-15)
 
-Nutzer-Feedback 2026-08-15 zum aktuellen `DetailScreen`: wirkt "alles auf einen Haufen". Gewünschte Struktur, explizit erst für v2 vorgesehen (nicht jetzt umsetzen):
+Nutzer-Feedback 2026-08-15 zum `DetailScreen`: wirkte "alles auf einen Haufen". Umgesetzt:
 
-- **Immer sichtbar (Header, kein Tab):** Name, Hersteller/Marke, Bild.
-- **Tab 1:** Beschreibung + Duftpyramide.
-- **Tab 2:** Bewertung (Sterne) + eigene Notiz.
-- **Tab 3:** UVP/Preis + Flakongröße + verfügbare Flakongrößen.
-- **Duftpyramide — kleine Symbole pro Note**, angelehnt an das Vorbild [parfumo.de](https://www.parfumo.de) (Screenshot vom Nutzer gezeigt): dort hat z. B. Aldehyde einen Wassertropfen, maritime Noten eine Welle, Orange/rote Mandarine Frucht-Icons, Neroli eine Blüte, Pfeffer/Zeder/Amber/Tonkabohne/Vanille/Vetiver/weißer Moschus jeweils ein passendes kleines Icon. Braucht ein Mapping Notenname → Icon (zumindest für die häufigsten Noten) mit einem neutralen Fallback-Icon für unbekannte/seltene Noten.
-- Unklar/noch zu klären, sobald diese Phase angegangen wird: ob der Editor-Screen (`PerfumeEditorScreen`, aktuell eine lange Formular-Liste) dieselbe Tab-Aufteilung bekommen soll oder als Formular bleibt — bisher nur für den reinen Anzeige-Screen (`DetailScreen`) besprochen.
+- **Immer sichtbar (Header, kein Tab):** Bild + Umschalter eigenes Foto/Stock-Bild, Marke (Name steht schon in der TopAppBar).
+- **Tab „Info":** Beschreibung + Duftpyramide.
+- **Tab „Bewertung":** Sterne-Bewertung + eigene Notiz.
+- **Tab „Preis":** UVP, Flakongröße, verfügbare Flakongrößen, EAN (passte inhaltlich am besten hierher, war im ursprünglichen Plan nicht explizit einsortiert).
+- **Duftpyramide — kleine Symbole pro Note:** Emoji-basiertes Stichwort-Mapping (`noteEmoji()` in `DetailScreen.kt`) statt eines eigenen Icon-Sets — bewusst keine `material-icons-extended`-Abhängigkeit aufgemacht (die ist ohne aktivierte Minifizierung, `isMinifyEnabled = false`, spürbar APK-Größe wert). Deckt gängige Duftfamilien ab (Zitrus, Blumig, Aquatisch, Würzig, Holzig, Ambriert, Gourmand, Fruchtig, Grün/Kräuter), neutrales Fallback-Symbol (✨) für alles andere.
+- Editor-Screen (`PerfumeEditorScreen`) bewusst NICHT umgebaut — bleibt Formular, wie zuvor besprochen nur der reine Anzeige-Screen betroffen.
 
-**Warum noch nicht:** Nutzer möchte das bewusst erst angehen, wenn v2 ansteht — bis dahin nur dokumentiert, nicht implementiert.
+`TabRow` (deprecated) durch `SecondaryTabRow` ersetzt. Lokal per `./gradlew compileDebugKotlin` verifiziert, nicht live auf einem Gerät durchgeklickt.
