@@ -47,6 +47,8 @@ class PerfumeEditorViewModel(
     private val imageStorage: ImageStorage,
     /** Vom Foto-Hinzufügen-Flow: das für die Erkennung genutzte Foto, schon lokal gespeichert. */
     initialBildPfadEigen: String? = null,
+    /** Vom Foto-Hinzufügen-Flow: per Websuche gefundenes, schon lokal gespeichertes Stock-Bild. */
+    initialBildPfadStock: String? = null,
     /** Von Gemini gelieferter Erkennungsvorschlag — nur bei Neuanlage relevant. */
     vorschlag: PerfumeSuggestion? = null,
     /** Vorab gescannter Barcode aus dem Foto-Hinzufügen-Flow. */
@@ -66,7 +68,8 @@ class PerfumeEditorViewModel(
                 vorschlag?.notenHerz.orEmpty().map { NotenEingabe(it, Position.HERZ) } +
                 vorschlag?.notenBasis.orEmpty().map { NotenEingabe(it, Position.BASIS) }),
             bildPfadEigen = initialBildPfadEigen,
-            aktivesBild = initialBildPfadEigen?.let { AktivesBild.EIGEN },
+            bildPfadStock = initialBildPfadStock,
+            aktivesBild = initialBildPfadEigen?.let { AktivesBild.EIGEN } ?: initialBildPfadStock?.let { AktivesBild.STOCK },
         ),
     )
     val uiState: StateFlow<PerfumeEditorUiState> = _uiState.asStateFlow()
@@ -140,6 +143,25 @@ class PerfumeEditorViewModel(
     }
 
     fun aktivesBildGesetzt(bild: AktivesBild) = _uiState.update { it.copy(aktivesBild = bild) }
+
+    /** Dreht das aktuell angezeigte Bild (eigenes Foto oder Stock-Bild) um 90°. */
+    fun bildDrehen() {
+        val state = _uiState.value
+        val aktiv = state.aktivesBild ?: return
+        val pfad = when (aktiv) {
+            AktivesBild.EIGEN -> state.bildPfadEigen
+            AktivesBild.STOCK -> state.bildPfadStock
+        } ?: return
+        viewModelScope.launch {
+            val neuerPfad = withContext(Dispatchers.IO) { imageStorage.drehe90Grad(pfad) } ?: return@launch
+            _uiState.update {
+                when (aktiv) {
+                    AktivesBild.EIGEN -> it.copy(bildPfadEigen = neuerPfad)
+                    AktivesBild.STOCK -> it.copy(bildPfadStock = neuerPfad)
+                }
+            }
+        }
+    }
 
     fun speichern() {
         val state = _uiState.value

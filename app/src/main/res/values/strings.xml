@@ -50,6 +50,7 @@
     <string name="stock_bild">Stock-Bild</string>
     <string name="foto_aufnehmen">Foto aufnehmen</string>
     <string name="aus_galerie_waehlen">Aus Galerie wählen</string>
+    <string name="foto_drehen">Drehen</string>
 
     <!-- Barcode-Scan (Phase 3) -->
     <string name="barcode_scannen">Barcode scannen</string>

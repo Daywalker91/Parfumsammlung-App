@@ -72,13 +72,16 @@ fun PerfumeEditorScreen(
     onSaved: () -> Unit,
     onBack: () -> Unit,
     initialBildPfadEigen: String? = null,
+    initialBildPfadStock: String? = null,
     vorschlag: PerfumeSuggestion? = null,
     initialEan: String? = null,
 ) {
     val viewModel: PerfumeEditorViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                PerfumeEditorViewModel(perfumeId, repository, imageStorage, initialBildPfadEigen, vorschlag, initialEan)
+                PerfumeEditorViewModel(
+                    perfumeId, repository, imageStorage, initialBildPfadEigen, initialBildPfadStock, vorschlag, initialEan,
+                )
             }
         },
     )
@@ -150,6 +153,7 @@ fun PerfumeEditorScreen(
                 imageStorage = imageStorage,
                 onFotoGewaehlt = viewModel::eigenesFotoGewaehlt,
                 onAktivesBildGeaendert = viewModel::aktivesBildGesetzt,
+                onBildDrehen = viewModel::bildDrehen,
             )
 
             OutlinedTextField(
@@ -234,6 +238,7 @@ private fun BildAuswahlSektion(
     imageStorage: ImageStorage,
     onFotoGewaehlt: (Uri) -> Unit,
     onAktivesBildGeaendert: (AktivesBild) -> Unit,
+    onBildDrehen: () -> Unit,
 ) {
     val angezeigterPfad = when (aktivesBild) {
         AktivesBild.STOCK -> bildPfadStock ?: bildPfadEigen
@@ -296,6 +301,9 @@ private fun BildAuswahlSektion(
                     galerieLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
             ) { Text(stringResource(R.string.aus_galerie_waehlen)) }
+            if (angezeigterPfad != null) {
+                OutlinedButton(onClick = onBildDrehen) { Text(stringResource(R.string.foto_drehen)) }
+            }
         }
     }
 }

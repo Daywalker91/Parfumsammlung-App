@@ -100,6 +100,7 @@ fun AromathekNavHost(
                 repository = container.perfumeRepository,
                 imageStorage = container.imageStorage,
                 initialBildPfadEigen = payload?.bildPfadEigen,
+                initialBildPfadStock = payload?.bildPfadStock,
                 vorschlag = payload?.vorschlag,
                 initialEan = payload?.ean,
                 onSaved = { navController.popBackStack(AromathekRoutes.COLLECTION, inclusive = false) },
