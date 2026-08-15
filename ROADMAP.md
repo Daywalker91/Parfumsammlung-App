@@ -42,11 +42,13 @@ Modell: `gemini-3.5-flash`. Settings-Screen (API-Key speichern/lesen über Encry
 
 **Warum erst jetzt:** Komplexestes und riskantestes Stück (externe API, JSON-Schema-Design, Netzwerk-Fehlerfälle) — auf einem bereits laufenden, getesteten Fundament aufsetzen statt gleichzeitig UI und Gemini-Integration zu debuggen.
 
-## Phase 5 — Distribution
+## Phase 5 — Distribution (teilweise fertig, 2026-08-15)
 - [x] Datenschutz-Hinweis (Erststart + Settings) — vorgezogen, kam natürlich mit dem Settings-Screen aus Phase 4 mit
-- [ ] Signing-Keystore erzeugen + als GitHub Secrets hinterlegen
-- [ ] Self-Update-Mechanismus (Versions-Check, Download, Install-Intent)
-- [ ] Entwickler-Optionen (10×-Tap, Stable/Experimental-Umschalter)
+- [ ] Signing-Keystore erzeugen + als GitHub Secrets hinterlegen — **noch offen, mit Nutzer abzustimmen** (sicherheitskritisch: Verlust = App kann sich nie wieder selbst updaten)
+- [x] Self-Update-Mechanismus (Versions-Check, Download, Install-Intent)
+- [x] Entwickler-Optionen (10×-Tap, Stable/Experimental-Umschalter)
+
+Self-Update und Entwickler-Optionen live gegen die echte GitHub-API des Repos verifiziert (Stable- und Experimental-Kanal, beide korrekt „kein Update" bei noch nicht existierenden Releases, kein Crash). Download/Installations-Pfad selbst ungetestet, da noch kein Release zum Herunterladen existiert — das braucht sowieso erst den Signing-Keystore, um über die CI-Pipeline etwas zu veröffentlichen.
 
 **Warum jetzt:** Erst sinnvoll, wenn es eine Version gibt, die den Namen „Release" verdient — vorher wäre es Distributions-Infrastruktur für eine leere App.
 
