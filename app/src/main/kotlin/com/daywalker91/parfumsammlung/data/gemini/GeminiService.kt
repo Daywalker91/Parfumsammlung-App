@@ -48,7 +48,17 @@ class GeminiService(
     // auch wirklich sofort stoppt (Coroutine-Abbruch ist kooperativ, ein
     // blockierender execute()-Call würde ihn ignorieren), läuft die Anfrage
     // über ausfuehrenAbbrechbar() statt über ein simples execute().
+    //
+    // Wichtig: callTimeout(0) allein reicht NICHT — OkHttp hat daneben noch
+    // getrennte connect-/write-/read-Timeouts, die ohne explizite Angabe auf
+    // den Default von 10s stehen. Der Read-Timeout (Lücke zwischen Antwort-
+    // Paketen, z. B. während Gemini "nachdenkt", bevor die Antwort zu
+    // streamen beginnt) hat genau deshalb weiterhin zugeschlagen — daher
+    // hier alle vier einzeln auf 0 (unbegrenzt).
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .writeTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
         .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
         .build(),
 ) {
