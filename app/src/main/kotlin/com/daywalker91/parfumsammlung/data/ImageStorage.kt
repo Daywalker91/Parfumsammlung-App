@@ -64,9 +64,13 @@ class ImageStorage(private val context: Context) {
         val resolver = context.contentResolver
 
         // 1. Durchlauf: nur Abmessungen ermitteln, ohne das volle Bild in den Speicher zu laden.
+        // Wichtig: BitmapFactory.decodeStream() liefert bei inJustDecodeBounds=true IMMER
+        // null zurück (so ist die Bounds-only-API gebaut) — das darf nicht mit einem
+        // fehlgeschlagenen openInputStream() verwechselt werden, sonst schlägt jeder
+        // Aufruf fehl, egal ob das Bild gültig ist.
         val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, boundsOptions) }
-            ?: return null
+        val boundsStream = resolver.openInputStream(uri) ?: return null
+        boundsStream.use { BitmapFactory.decodeStream(it, null, boundsOptions) }
 
         var sampleSize = 1
         while (boundsOptions.outWidth / sampleSize > maxDimension * 2 ||
@@ -76,9 +80,9 @@ class ImageStorage(private val context: Context) {
         }
 
         val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-        val grob = resolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, decodeOptions)
-        } ?: return null
+        val decodeStream = resolver.openInputStream(uri) ?: return null
+        val grob = decodeStream.use { BitmapFactory.decodeStream(it, null, decodeOptions) }
+            ?: return null
 
         return skaliereAufMax(grob, maxDimension)
     }
