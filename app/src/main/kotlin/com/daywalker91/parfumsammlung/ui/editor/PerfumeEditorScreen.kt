@@ -6,6 +6,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -292,7 +293,11 @@ private fun BildAuswahlSektion(
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // FlowRow statt Row: bei drei Buttons nebeneinander reicht die Breite auf
+        // schmalen Bildschirmen nicht — ohne Umbruch würde Compose den letzten
+        // Button auf eine winzige Breite zusammenquetschen (Text bricht dann
+        // buchstabenweise um statt einfach in eine zweite Zeile zu rutschen).
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { kameraBerechtigungLauncher.launch(android.Manifest.permission.CAMERA) }) {
                 Text(stringResource(R.string.foto_aufnehmen))
             }

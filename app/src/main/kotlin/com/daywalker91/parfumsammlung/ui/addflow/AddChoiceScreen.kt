@@ -86,6 +86,14 @@ fun AddChoiceScreen(
         }
     }
 
+    // Nur ein Toast, kein blockierender Dialog — die Haupterkennung war ja
+    // trotzdem erfolgreich, das betrifft nur das optionale Stock-Bild.
+    LaunchedEffect(Unit) {
+        viewModel.stockBildHinweis.collect { textResId ->
+            Toast.makeText(context, context.getString(textResId), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

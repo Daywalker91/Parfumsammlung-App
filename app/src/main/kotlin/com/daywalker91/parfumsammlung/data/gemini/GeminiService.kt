@@ -93,7 +93,14 @@ class GeminiService(
     /** Lädt ein per Websuche gefundenes Stock-Bild herunter (für ImageStorage.speichereVonBytes). */
     suspend fun ladeBild(url: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(url).build()
+            val request = Request.Builder()
+                .url(url)
+                // Manche Bildhoster/CDNs blocken Downloads ohne "echten"
+                // Browser-User-Agent als Hotlink-Schutz — OkHttps Default
+                // ("okhttp/x.x") fällt darunter, ein Stock-Bild könnte sonst
+                // trotz gültiger URL nie ankommen.
+                .header("User-Agent", USER_AGENT)
+                .build()
             ausfuehrenAbbrechbar(request).use { response ->
                 if (!response.isSuccessful) return@withContext null
                 response.body.bytes()
@@ -226,6 +233,9 @@ class GeminiService(
         // ein Google-Cloud-Billing-Konto (pay-as-you-go, 5.000 grounded Anfragen/Monat
         // weiterhin gratis inklusive, siehe ai.google.dev/gemini-api/docs/pricing).
         const val MODELL = "gemini-3.5-flash"
+
+        const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
 
         val PROMPT_VORLAGE = """
             Du bist ein Parfum-Experte. Analysiere das beigefügte Foto eines
