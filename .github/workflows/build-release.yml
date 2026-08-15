@@ -17,6 +17,12 @@ jobs:
         with:
           fetch-depth: 0 # volle Tag-Historie nötig, um den letzten vX.Y-Tag zu finden
 
+      # Sicherheitsnetz: falls der Wrapper mal wieder auf Windows neu erzeugt
+      # wird und das Ausführungsbit dabei verloren geht (siehe Commit
+      # "Fix gradlew missing executable bit").
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew
+
       - name: Determine version (X.Y scheme)
         id: version
         run: |
