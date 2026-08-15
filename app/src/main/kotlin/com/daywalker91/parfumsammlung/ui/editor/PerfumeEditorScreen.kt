@@ -6,12 +6,13 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -293,21 +294,32 @@ private fun BildAuswahlSektion(
             }
         }
 
-        // FlowRow statt Row: bei drei Buttons nebeneinander reicht die Breite auf
-        // schmalen Bildschirmen nicht — ohne Umbruch würde Compose den letzten
-        // Button auf eine winzige Breite zusammenquetschen (Text bricht dann
-        // buchstabenweise um statt einfach in eine zweite Zeile zu rutschen).
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { kameraBerechtigungLauncher.launch(android.Manifest.permission.CAMERA) }) {
-                Text(stringResource(R.string.foto_aufnehmen))
-            }
+        // Jeder Button per weight(1f) gleich breit — teilen sich die Zeile fair
+        // auf, statt dass (wie vorher mit einer normalen Row ohne weight) der
+        // letzte Button auf eine winzige Restbreite zusammengequetscht wird.
+        // Kompaktere Innenabstände + kleinere Schrift, damit auch die längeren
+        // Labels ("Aus Galerie wählen") bei drei Buttons in einer Zeile noch
+        // vernünftig (max. zweizeilig, nicht buchstabenweise) umbrechen.
+        val fotoButtonPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { kameraBerechtigungLauncher.launch(android.Manifest.permission.CAMERA) },
+                contentPadding = fotoButtonPadding,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(R.string.foto_aufnehmen), style = MaterialTheme.typography.labelMedium) }
             OutlinedButton(
                 onClick = {
                     galerieLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
-            ) { Text(stringResource(R.string.aus_galerie_waehlen)) }
+                contentPadding = fotoButtonPadding,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(R.string.aus_galerie_waehlen), style = MaterialTheme.typography.labelMedium) }
             if (angezeigterPfad != null) {
-                OutlinedButton(onClick = onBildDrehen) { Text(stringResource(R.string.foto_drehen)) }
+                OutlinedButton(
+                    onClick = onBildDrehen,
+                    contentPadding = fotoButtonPadding,
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.foto_drehen), style = MaterialTheme.typography.labelMedium) }
             }
         }
     }
