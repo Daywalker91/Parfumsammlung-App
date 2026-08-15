@@ -75,26 +75,3 @@ Nutzer-Feedback 2026-08-15 zum aktuellen `DetailScreen`: wirkt "alles auf einen 
 - Unklar/noch zu klären, sobald diese Phase angegangen wird: ob der Editor-Screen (`PerfumeEditorScreen`, aktuell eine lange Formular-Liste) dieselbe Tab-Aufteilung bekommen soll oder als Formular bleibt — bisher nur für den reinen Anzeige-Screen (`DetailScreen`) besprochen.
 
 **Warum noch nicht:** Nutzer möchte das bewusst erst angehen, wenn v2 ansteht — bis dahin nur dokumentiert, nicht implementiert.
-
-## Phase 8 — Mehrgeräte-/Mehrpersonen-Sync (Ideensammlung, noch nicht begonnen)
-
-Nutzer-Wunsch 2026-08-15: Sync zwischen zwei App-Installationen. Auf Nachfrage sind **alle drei** folgenden Anwendungsfälle gewünscht — eine gemeinsame Architektur soll alle drei abdecken, statt drei Einzellösungen:
-1. Geschenke-Wunschliste mit einer anderen Person teilen (z. B. Partner) — die andere Person soll sehen können, was auf der Wunschliste steht, aber der Besitzer selbst darf nicht sehen, was davon schon "reserviert/gekauft" wurde (sonst ist die Überraschung hin).
-2. Gemeinsame Sammlung zu zweit führen (beide sehen/bearbeiten dieselben Einträge, wie eine geteilte Einkaufsliste-App).
-3. Eigene Geräte synchron halten (nur eine Person, aber z. B. altes + neues Handy oder Handy + Tablet).
-
-**Empfohlene Architektur (Ideenskizze, nicht final):**
-- **Backend:** Firebase/Firestore statt eigenem Server — Echtzeit-Sync und Offline-Persistenz kommen "gratis" aus der SDK (lokal cachen, bei Netz automatisch synchronisieren), passt zum bisherigen Ansatz ohne selbst gehostete Infrastruktur. Freier Spark-Plan realistisch dauerhaft 0€/Monat bei diesem Nutzungsumfang (ähnliche Überlegung wie beim Gemini-Billing).
-- **Identität:** Google-Sign-In (nicht E-Mail/Passwort) — überlebt Gerätewechsel, kein Passwort zu verwalten. Nötig, damit "eigene Geräte synchron" funktioniert (beide Geräte = dieselbe Identität).
-- **Haushalt/Gruppe + Einladungscode:** ein Code/QR zum Beitreten verbindet zwei Konten zu einer geteilten Gruppe, ohne komplexe Nutzerverwaltung.
-- **`sichtbarkeit`-Feld pro Eintrag:** "Privat" (nur ich) vs. "geteilt" (ganzer Haushalt) — deckt Anwendungsfall 2 ab.
-- **Asymmetrische Sichtbarkeit für die Wunschliste (Kernstück für Anwendungsfall 1):** ein `reserviertVon`-Feld, das andere Haushaltsmitglieder auf einen fremden Wunschlisten-Eintrag setzen können ("ich schenk das"), das aber **dem Besitzer des Eintrags nie angezeigt wird**. Ohne dieses Detail ist eine geteilte Wunschliste fürs Verschenken witzlos.
-
-**Umfang, wenn es angegangen wird (spürbarer Umbau, kein kleiner Zusatz):**
-- Neue Abhängigkeit (Firebase Auth + Firestore) — bisher hat das Projekt bewusst keine zusätzliche Dependency-Front neben AGP/Kotlin/Compose aufgemacht, das wäre die erste.
-- Perfume/Note-Datenmodell erweitern (`ownerId`, `householdId`, `sichtbarkeit`, `reserviertVon`) + Migration; Room bliebe entweder als lokaler Cache bestehen oder würde teilweise durch Firestore ersetzt.
-- Neue UI: Haushalt erstellen/beitreten/verlassen, Sichtbarkeits-Umschalter pro Eintrag, "Ich schenke das"-Markierung in der (fremden) Wunschliste, Google-Sign-In-Flow im Settings-Screen.
-
-**Warum noch nicht:** Nutzer möchte sich vorerst nur Gedanken dazu machen, aktuell nicht konkret umsetzen — bis dahin nur dokumentiert.
-
-**Warum noch nicht:** Nutzer möchte das bewusst erst angehen, wenn v2 ansteht — bis dahin nur dokumentiert, nicht implementiert.
