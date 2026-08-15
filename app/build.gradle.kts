@@ -14,6 +14,19 @@ plugins {
 val ciVersionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
 val ciVersionName = project.findProperty("versionName") as String? ?: "0.0-dev"
 
+// Release-Signierung: direkt in Gradle statt über eine Drittanbieter-Action
+// (r0adkll/sign-android-release), die auf dem GitHub-Runner eine feste,
+// dort nicht vorhandene Build-Tools-Version (29.0.3) erwartete. So nutzt
+// die Signierung dieselbe Build-Tools-Version, die dieses Projekt ohnehin
+// schon zieht — und assembleRelease liefert direkt eine fertig signierte
+// APK, kein separater Signing-Schritt nötig. Lokale Builds ohne diese
+// Properties bleiben unsigniert (unverändertes Verhalten).
+val signingStoreFile = project.findProperty("signingStoreFile") as String?
+val signingStorePassword = project.findProperty("signingStorePassword") as String?
+val signingKeyAlias = project.findProperty("signingKeyAlias") as String?
+val signingKeyPassword = project.findProperty("signingKeyPassword") as String?
+val hasReleaseSigning = signingStoreFile != null
+
 android {
     namespace = "com.daywalker91.parfumsammlung"
     compileSdk = 36
@@ -28,9 +41,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(signingStoreFile!!)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

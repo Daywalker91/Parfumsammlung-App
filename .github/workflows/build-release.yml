@@ -46,16 +46,21 @@ jobs:
       - uses: actions/setup-java@v4
         with: { java-version: '17', distribution: 'temurin' }
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease -PversionCode=${{ steps.version.outputs.versionCode }} -PversionName=${{ steps.version.outputs.versionName }}
+      # Signierung läuft direkt über Gradle (app/build.gradle.kts), nicht über
+      # eine Drittanbieter-Action — die zog auf dem Runner eine dort nicht
+      # vorhandene, fest einprogrammierte Build-Tools-Version (29.0.3).
+      - name: Decode signing keystore
+        run: echo "${{ secrets.SIGNING_KEY }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      - uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+      - name: Build & sign release APK
+        run: |
+          ./gradlew assembleRelease \
+            -PversionCode=${{ steps.version.outputs.versionCode }} \
+            -PversionName=${{ steps.version.outputs.versionName }} \
+            -PsigningStoreFile="$RUNNER_TEMP/release.keystore" \
+            -PsigningStorePassword=${{ secrets.KEYSTORE_PASSWORD }} \
+            -PsigningKeyAlias=${{ secrets.KEY_ALIAS }} \
+            -PsigningKeyPassword=${{ secrets.KEY_PASSWORD }}
 
       - uses: softprops/action-gh-release@v2
         with:
