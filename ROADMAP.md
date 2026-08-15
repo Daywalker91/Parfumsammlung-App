@@ -38,7 +38,9 @@ Nicht live durchscannbar in diesem Environment — der Emulator (ohne Play Store
 - [x] „Per Foto hinzufügen"-Flow — nutzt das Formular aus Phase 1 als Korrektur-UI, die Bildlogik aus Phase 2, optional die EAN aus Phase 3
 - [x] Fehlerfälle: offline-Hinweis, „nicht genug Daten gefunden"
 
-Modell: `gemini-3.5-flash`. Settings-Screen (API-Key speichern/lesen über EncryptedSharedPreferences) und der komplette Auswahl-Screen live verifiziert, kein Crash. Der eigentliche Gemini-Netzwerk-Call selbst ist in diesem Environment nicht end-to-end testbar (kein echter API-Key vorhanden) — Code folgt der Doku, Fehlerfälle (offline/kein Key/nicht genug Daten/sonstiger Fehler) sind implementiert und fallen alle auf manuelle Eingabe zurück, inkl. Erhalt des bereits aufgenommenen Fotos.
+Modell: `gemini-2.5-flash` (zunächst `gemini-3.5-flash`, siehe unten warum umgestellt). Settings-Screen (API-Key speichern/lesen über EncryptedSharedPreferences) und der komplette Auswahl-Screen live verifiziert, kein Crash. Der eigentliche Gemini-Netzwerk-Call selbst ist in diesem Environment nicht end-to-end testbar (kein echter API-Key vorhanden) — Code folgt der Doku, Fehlerfälle (offline/kein Key/nicht genug Daten/sonstiger Fehler) sind implementiert und fallen alle auf manuelle Eingabe zurück, inkl. Erhalt des bereits aufgenommenen Fotos.
+
+**Modellwechsel 2026-08-15:** Mit echtem API-Key trat bei jedem Versuch ein 429-Fehler auf. Ursache: Grounding mit Google-Suche (die App schickt bei jedem Request unbedingt `tools: [{"google_search": {}}]` mit, siehe `GeminiService.kt`) ist bei den Gemini-3.x-Modellen nur noch im bezahlten Tarif enthalten — beim älteren `gemini-2.5-flash` dagegen weiterhin kostenlos bis 500 Anfragen/Tag. Modell entsprechend umgestellt, kein Rechnungskonto nötig.
 
 **Warum erst jetzt:** Komplexestes und riskantestes Stück (externe API, JSON-Schema-Design, Netzwerk-Fehlerfälle) — auf einem bereits laufenden, getesteten Fundament aufsetzen statt gleichzeitig UI und Gemini-Integration zu debuggen.
 
