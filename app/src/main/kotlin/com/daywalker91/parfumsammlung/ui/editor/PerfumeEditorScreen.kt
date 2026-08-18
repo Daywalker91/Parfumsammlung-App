@@ -8,7 +8,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -225,14 +225,26 @@ fun PerfumeEditorScreen(
             )
 
             Text(stringResource(R.string.feld_saison), style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Bewusst Row+weight statt FlowRow: alle drei Chips bleiben immer in
+            // einer Zeile und teilen sich die Breite gleichmäßig, statt dass der
+            // dritte Chip auf eine zweite Zeile umbricht (Nutzer-Feedback,
+            // gleiche Anpassung wie bei den Saison-Chips in CollectionScreen).
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Saison.entries.forEach { saison ->
                     FilterChip(
                         selected = uiState.saison == saison,
                         onClick = {
                             viewModel.saisonGeaendert(if (uiState.saison == saison) null else saison)
                         },
-                        label = { Text(saison.label()) },
+                        label = {
+                            Text(
+                                text = saison.label(),
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }

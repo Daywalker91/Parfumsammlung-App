@@ -64,6 +64,17 @@ class CollectionViewModel(
         initialValue = CollectionUiState(sortMode = sortPreferenceStore.getSortMode()),
     )
 
+    /**
+     * Der Sortiermodus wird nur einmalig im Konstruktor aus dem Store gelesen —
+     * wird er in den Einstellungen geändert, bekommt diese (auf dem Back-Stack
+     * erhaltene, nicht neu erstellte) ViewModel-Instanz das nicht automatisch
+     * mit. Deshalb bei jedem erneuten Betreten des Screens neu einlesen (siehe
+     * CollectionScreen, LaunchedEffect).
+     */
+    fun sortModeNeuLaden() {
+        _sortMode.value = sortPreferenceStore.getSortMode()
+    }
+
     fun sucheAendern(text: String) { _suchtext.value = text }
 
     fun markeFilterAendern(marke: String?) { _markeFilter.value = marke }
