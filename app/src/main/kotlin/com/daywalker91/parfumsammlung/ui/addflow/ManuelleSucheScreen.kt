@@ -165,7 +165,7 @@ private fun hinweisTitel(hinweis: SucheHinweis): String = when (hinweis) {
 @Composable
 private fun hinweisText(hinweis: SucheHinweis): String = when (hinweis) {
     SucheHinweis.KeinApiKey -> stringResource(R.string.manuelle_suche_hinweis_kein_api_key_text)
-    SucheHinweis.Offline -> stringResource(R.string.hinweis_offline_text)
+    SucheHinweis.Offline -> stringResource(R.string.manuelle_suche_hinweis_offline_text)
     SucheHinweis.NichtGefunden -> stringResource(R.string.hinweis_nicht_gefunden_text)
     is SucheHinweis.Fehler -> hinweis.nachricht
 }

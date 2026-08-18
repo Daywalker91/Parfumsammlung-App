@@ -146,6 +146,7 @@
     <string name="hinweis_nicht_gefunden_titel">Nichts gefunden</string>
     <string name="hinweis_nicht_gefunden_text">Zu diesem Namen konnte nichts Passendes gefunden werden. Versuch es mit einem anderen Suchbegriff, oder nutze die manuelle Eingabe.</string>
     <string name="manuelle_suche_hinweis_kein_api_key_text">Die Namenssuche braucht einen Gemini-API-Key (Einstellungen → Gemini-API-Key). Ohne Key bleibt nur die manuelle Eingabe.</string>
+    <string name="manuelle_suche_hinweis_offline_text">Die Namenssuche braucht eine Internetverbindung. Versuch es erneut, sobald du wieder online bist, oder nutze die manuelle Eingabe.</string>
 
     <!-- Shop-Suche (Phase 8c) -->
     <string name="shops_titel">Online-Shops</string>
