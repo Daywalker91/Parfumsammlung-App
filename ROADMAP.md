@@ -46,6 +46,12 @@ Modell: `gemini-2.5-flash` (zunächst `gemini-3.5-flash`, siehe unten warum umge
 
 **Warum erst jetzt:** Komplexestes und riskantestes Stück (externe API, JSON-Schema-Design, Netzwerk-Fehlerfälle) — auf einem bereits laufenden, getesteten Fundament aufsetzen statt gleichzeitig UI und Gemini-Integration zu debuggen.
 
+**Nachbesserung 2026-08-18 (Stock-Bild-Qualität + Wiederholbarkeit):** Nutzer-Feedback: Stock-Bilder waren nicht überzeugend und wiederholte Anfragen für dasselbe Parfum (z. B. über den „Daten aktualisieren"-Button aus dem Editor) lieferten zu unterschiedliche Ergebnisse. Zwei Ursachen behoben, beide in `GeminiService.kt`:
+- Request hatte gar keine `generationConfig` gesetzt, lief also auf Geminis Default-Temperature (deutlich über 0) — für eine Erkennungs-/Recherche-Aufgabe mit festem JSON-Format unnötig kreativ. Jetzt `temperature: 0.1`, reduziert Varianz zwischen Wiederholungen desselben Requests spürbar.
+- Prompt sagte nur, dass die `stockBildUrl` real existieren muss, aber nicht, welches von mehreren gefundenen Bildern zu bevorzugen ist. Jetzt explizite Prioritätsreihenfolge (offizielle Marke → großer Händler → Duft-Datenbank) plus Präferenz für klassische Packshots (neutraler Hintergrund) vor Lifestyle-/Werbebildern mit Wasserzeichen.
+
+Nur per `./gradlew compileDebugKotlin` verifiziert (kompiliert), nicht mit echtem API-Key gegen die echte Gemini-API getestet — die eigentliche Bildqualität/Konsistenz lässt sich nur mit echten Requests beurteilen, das war in diesem Environment nicht möglich.
+
 ## Phase 5 — Distribution ✅ fertig (2026-08-15)
 - [x] Datenschutz-Hinweis (Erststart + Settings) — vorgezogen, kam natürlich mit dem Settings-Screen aus Phase 4 mit
 - [x] Signing-Keystore erzeugen + als GitHub Secrets hinterlegt (RSA 4096, gültig bis 2056; lokale Kopie unter `E:\day_w\Android\keystore\`, dort unbedingt Backup-Hinweise in `WICHTIG-BACKUP-LESEN.txt` beachten)
@@ -77,3 +83,40 @@ Nutzer-Feedback 2026-08-15 zum `DetailScreen`: wirkte "alles auf einen Haufen". 
 - Editor-Screen (`PerfumeEditorScreen`) bewusst NICHT umgebaut — bleibt Formular, wie zuvor besprochen nur der reine Anzeige-Screen betroffen.
 
 `TabRow` (deprecated) durch `SecondaryTabRow` ersetzt. Lokal per `./gradlew compileDebugKotlin` verifiziert, nicht live auf einem Gerät durchgeklickt.
+
+## Phase 8 — Erweiterungen (Shop-Suche, manuelle Suche, Sortierung/Filter)
+
+Konzept-Vorlage: `Parfum-App_Erweiterungen.md` (lokal beim Nutzer, nicht im Repo). Status: **Planung**, noch nicht umgesetzt. Empfohlene Reihenfolge (aufsteigender Aufwand):
+
+- [x] **8a — Sortierung & Filter** ✅ fertig (2026-08-18)
+  - Sortier-Einstellung (Name/Marke/UVP) für die Übersichtsliste, global in den Einstellungen (`SortPreferenceStore`, `SettingsScreen`)
+  - Such-/Filterleiste in der Listenansicht (Volltext über Name, Filter nach Marke, Filter nach Saison), automatisch kontextabhängig auf den gerade aktiven Tab (Sammlung/Wunschliste) — Filterung/Sortierung bewusst client-seitig in `CollectionViewModel` statt per SQL, da für eine private Sammlung ausreichend und ohne `@RawQuery` auskommend
+  - Neues optionales Feld `saison` auf `Perfume` (Frühling/Sommer, Herbst/Winter, Ganzjährig) — von Gemini mitgeliefert (Prompt-Erweiterung in `GeminiService.kt`), sonst manuell im Editor nachtragbar (3 `FilterChip`s)
+  - Erste echte Room-`Migration` dieser App (`MIGRATION_1_2`, `version = 1 → 2`, `ALTER TABLE perfume ADD COLUMN saison TEXT`) statt `fallbackToDestructiveMigration` — bestehende Sammlungen bleiben beim Update erhalten. Nach dem Build verifiziert: `app/schemas/.../2.json` entsteht korrekt neu.
+  - Backup-Export/Import (`BackupManager`) um `saison` ergänzt, alte Backups ohne dieses Feld bleiben importierbar
+
+  Nur per `./gradlew compileDebugKotlin` verifiziert, nicht live auf einem Gerät durchgeklickt (kein Test-Setup in diesem Projekt, siehe bisherige Phasen).
+
+- [x] **8b — Manuelle Suche** ✅ fertig (2026-08-18)
+  - Dritter Erfassungsweg neben Foto und Barcode-Scan („Nach Name suchen"-Button in `AddChoiceScreen`, eigener `ManuelleSucheScreen`/`ManuelleSucheViewModel`): Nutzer tippt nur den Namen, Gemini+Grounding sucht danach
+  - Zweistufig in `GeminiService.kt`: `sucheKandidaten()` (Text-only, liefert `PerfumeKandidat`-Liste) → bei genau einem Treffer Rückfrage „Meinten Sie [Name] von [Marke]?", bei mehreren eine Auswahlliste (Auswahl selbst ist die Bestätigung, kein zusätzlicher Dialog) → `erkennePerfumNachNameUndMarke()` für die volle Datenübernahme, landet über dieselbe `PerfumeSuggestionBridge`/`EDITOR_VON_VORSCHLAG`-Route wie der Foto-Flow
+  - `GeminiService` intern aufgeräumt: gemeinsamer `geminiAnfrage()`-Helper für alle drei Request-Typen (Foto-Erkennung, Kandidatensuche, Namens-Vollabruf) statt dreifach dupliziertem Request-/Fehlerbehandlungs-Code
+
+  Nur per `./gradlew compileDebugKotlin` verifiziert. Die eigentliche Trefferqualität der neuen Prompts ist ohne echten API-Key hier nicht testbar (wie schon bei Phase 4).
+
+- [x] **8c — Shop-Suche** ✅ fertig (2026-08-18)
+  - Eigener Bereich im Preis-Tab der Detailansicht (`ShopSucheSektion` in `DetailScreen.kt`, direkt unter der UVP): Liste aktuell verfügbarer Online-Shops mit Preis und, sofern ermittelbar, Verfügbarkeit, antippbar (öffnet den Link im Browser)
+  - `GeminiService.sucheShops()` (Text-only, gleicher `geminiAnfrage()`-Helper wie 8b), strukturiert als `ShopAngebot{shopName, link, preis, verfuegbarkeit}`
+  - Bewusst reine Momentaufnahme zum Abrufzeitpunkt, **kein** automatischer Abruf beim Öffnen des Tabs — erst expliziter „Shops suchen"-Button, danach ein Refresh-Icon für erneutes Abfragen (`DetailViewModel.shopSucheStarten()`)
+  - Kein dauerhaftes DB-Feld — Ergebnisse leben nur transient in `DetailUiState`/`DetailViewModel`, nirgends persistiert (kein `repository.update(...)`)
+
+  Nur per `./gradlew compileDebugKotlin` verifiziert. Trefferqualität/Zuverlässigkeit der Preis-/Verfügbarkeits-Daten (erfahrungsgemäß der unzuverlässigste Teil solcher Prompts) lässt sich nur mit echtem API-Key auf dem Gerät beurteilen.
+
+**Warum in dieser Reihenfolge:** 8a ist reine Compose/Room-Arbeit ohne Gemini-Abhängigkeit und unabhängig nutzbar. 8b baut direkt auf der in Phase 4 etablierten Suggestion-Pipeline auf. 8c ist der aufwändigste Teil (neues Antwortformat, Preis-/Verfügbarkeits-Daten sind erfahrungsgemäß am unzuverlässigsten) und zieht daher am ehesten Prompt-Nacharbeit nach sich, ähnlich wie bei der bestehenden Bild-/Konsistenz-Verfeinerung in Phase 4 (siehe dort).
+
+**Gesamtstatus Phase 8 (2026-08-18):** Alle drei Sub-Phasen (8a/8b/8c) umgesetzt und live auf einem echten Gerät (Samsung SM-G991B, per adb) durchgeklickt.
+
+- 8a ohne API-Key vollständig durchgeklickt: Suche/Marke-/Saison-Filter funktionieren gegen echte Room-Daten in beide Richtungen, Sortier-Picker persistiert, Erstinstallation lief anstandslos durch (Migration `v1→v2` griff, kein Crash).
+- 8b und 8c mit echtem Gemini-API-Key live getestet: Namenssuche „Sauvage Dior" lieferte korrekt drei plausible, klar unterscheidbare Kandidaten (moderne Sauvage EDT / klassisches Eau Sauvage von 1966 / Sauvage Elixir) — nach Auswahl vollständige, inhaltlich zutreffende Daten (Beschreibung, UVP, Flakongrößen, komplette Duftpyramide, `saison` korrekt als „Ganzjährig" übernommen). Shop-Suche lieferte sechs reale, plausible deutsche Händler (Parfumdreams, Douglas, Flaconi, Marionnaud, easycosmetic, Engels Parfümerie) mit stimmigen Preisen.
+- Ein Bug im Testlauf gefunden und gefixt: „Kein API-Key"-Hinweis in der Namenssuche zeigte fälschlich den Foto-Flow-Text („Foto-Erkennung", „das Foto wird übernommen") — eigener Text `manuelle_suche_hinweis_kein_api_key_text` ergänzt.
+- Logcat blieb über die gesamte Testsession fehlerfrei (kein einziger Crash).

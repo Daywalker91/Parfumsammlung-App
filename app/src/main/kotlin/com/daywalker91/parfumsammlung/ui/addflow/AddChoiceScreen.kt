@@ -52,6 +52,7 @@ fun AddChoiceScreen(
     geminiService: GeminiService,
     apiKeyStore: GeminiApiKeyStore,
     onNavigateToEditor: () -> Unit,
+    onNavigateToManuelleSuche: () -> Unit,
     onBack: () -> Unit,
 ) {
     val viewModel: AddChoiceViewModel = viewModel(
@@ -143,6 +144,12 @@ fun AddChoiceScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.ladeVorgang,
             ) { Text(stringResource(R.string.barcode_scannen)) }
+
+            OutlinedButton(
+                onClick = onNavigateToManuelleSuche,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.ladeVorgang,
+            ) { Text(stringResource(R.string.manuelle_suche_button)) }
 
             OutlinedButton(
                 onClick = viewModel::manuellOhneFoto,

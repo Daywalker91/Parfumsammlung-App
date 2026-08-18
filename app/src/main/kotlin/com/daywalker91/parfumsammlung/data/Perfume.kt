@@ -10,6 +10,26 @@ enum class PerfumeStatus { BESITZT, WUNSCHLISTE }
 /** Steuert, welches der beiden gecachten Bilder angezeigt wird (siehe Plan, Kapitel „Bildspeicherung"). */
 enum class AktivesBild { EIGEN, STOCK }
 
+/** Grobe Saisonalität eines Dufts (Phase 8a) — dient primär der Such-/Filterfunktion. */
+enum class Saison {
+    FRUEHLING_SOMMER,
+    HERBST_WINTER,
+    GANZJAEHRIG,
+    ;
+
+    /** Zum Anzeigen und für den Gemini-Prompt — dieselben drei Label wie im Konzeptdokument. */
+    fun label(): String = when (this) {
+        FRUEHLING_SOMMER -> "Frühling/Sommer"
+        HERBST_WINTER -> "Herbst/Winter"
+        GANZJAEHRIG -> "Ganzjährig"
+    }
+
+    companion object {
+        /** Für Gemini-Antworten, die eines der drei Label als Freitext liefern statt des Enum-Namens. */
+        fun ausLabel(text: String): Saison? = entries.firstOrNull { it.label() == text.trim() }
+    }
+}
+
 @Entity(tableName = "perfume")
 data class Perfume(
     @PrimaryKey(autoGenerate = true)
@@ -31,6 +51,7 @@ data class Perfume(
     val aktivesBild: AktivesBild? = null,
     val notiz: String? = null,
     val bewertung: Int? = null,
+    val saison: Saison? = null,
     @ColumnInfo(name = "erstellt_am")
     val erstelltAm: Long = System.currentTimeMillis(),
 )

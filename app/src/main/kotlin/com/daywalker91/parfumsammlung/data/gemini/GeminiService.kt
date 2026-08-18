@@ -26,6 +26,22 @@ sealed interface GeminiErgebnis {
     data class Fehler(val nachricht: String) : GeminiErgebnis
 }
 
+/** Ergebnis der Namens-Kandidatensuche (Phase 8b) — noch keine vollen Duftdaten, nur zur Auswahl/Bestätigung. */
+sealed interface GeminiKandidatenErgebnis {
+    data class Erfolg(val kandidaten: List<PerfumeKandidat>) : GeminiKandidatenErgebnis
+    data object NichtGefunden : GeminiKandidatenErgebnis
+    data object Offline : GeminiKandidatenErgebnis
+    data class Fehler(val nachricht: String) : GeminiKandidatenErgebnis
+}
+
+/** Ergebnis der Shop-Suche (Phase 8c) — reine Momentaufnahme, wird nirgends persistiert. */
+sealed interface GeminiShopSucheErgebnis {
+    data class Erfolg(val angebote: List<ShopAngebot>) : GeminiShopSucheErgebnis
+    data object NichtGefunden : GeminiShopSucheErgebnis
+    data object Offline : GeminiShopSucheErgebnis
+    data class Fehler(val nachricht: String) : GeminiShopSucheErgebnis
+}
+
 /**
  * Direkter REST-Client für die Gemini-API — bewusst kein Google-AI-SDK, um
  * keine weitere Dependency-Versionsfront neben AGP/Kotlin/Compose aufzumachen
@@ -64,31 +80,47 @@ class GeminiService(
 ) {
 
     suspend fun erkennePerfum(apiKey: String, bildBytes: ByteArray, ean: String?): GeminiErgebnis =
-        withContext(Dispatchers.IO) {
-            try {
-                val requestJson = baueRequestBody(bildBytes, ean)
-                val request = Request.Builder()
-                    .url("$ENDPOINT_BASIS/$MODELL:generateContent?key=$apiKey")
-                    .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
+        geminiAnfrage(
+            apiKey = apiKey,
+            requestJson = baueRequestBody(bildBytes, ean),
+            offline = GeminiErgebnis.Offline,
+            fehler = { GeminiErgebnis.Fehler(it) },
+            keineAntwort = GeminiErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            parse = ::parseSuggestion,
+        )
 
-                ausfuehrenAbbrechbar(request).use { response ->
-                    val rohantwort = response.body.string()
-                    if (!response.isSuccessful) {
-                        return@withContext GeminiErgebnis.Fehler(
-                            "Gemini-API-Fehler (${response.code}): ${fehlermeldungAus(rohantwort)}",
-                        )
-                    }
-                    val text = extrahiereText(rohantwort)
-                        ?: return@withContext GeminiErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten.")
-                    parseSuggestion(text)
-                }
-            } catch (e: UnknownHostException) {
-                GeminiErgebnis.Offline
-            } catch (e: IOException) {
-                GeminiErgebnis.Fehler(e.message ?: "Netzwerkfehler")
-            }
-        }
+    /** Kandidatensuche (Phase 8b, Schritt 1) — nur der Name ist bekannt, kein Foto. */
+    suspend fun sucheKandidaten(apiKey: String, name: String): GeminiKandidatenErgebnis =
+        geminiAnfrage(
+            apiKey = apiKey,
+            requestJson = baueTextRequestBody(promptKandidaten(name)),
+            offline = GeminiKandidatenErgebnis.Offline,
+            fehler = { GeminiKandidatenErgebnis.Fehler(it) },
+            keineAntwort = GeminiKandidatenErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            parse = ::parseKandidaten,
+        )
+
+    /** Volle Datenübernahme (Phase 8b, Schritt 2) — Marke+Name stehen nach der Kandidatenwahl schon fest. */
+    suspend fun erkennePerfumNachNameUndMarke(apiKey: String, name: String, marke: String, ean: String?): GeminiErgebnis =
+        geminiAnfrage(
+            apiKey = apiKey,
+            requestJson = baueTextRequestBody(promptNamensSuche(name, marke, ean)),
+            offline = GeminiErgebnis.Offline,
+            fehler = { GeminiErgebnis.Fehler(it) },
+            keineAntwort = GeminiErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            parse = ::parseSuggestion,
+        )
+
+    /** Shop-Suche (Phase 8c) — reine Momentaufnahme zum Abrufzeitpunkt, wird nicht persistiert. */
+    suspend fun sucheShops(apiKey: String, name: String, marke: String): GeminiShopSucheErgebnis =
+        geminiAnfrage(
+            apiKey = apiKey,
+            requestJson = baueTextRequestBody(promptShopSuche(name, marke)),
+            offline = GeminiShopSucheErgebnis.Offline,
+            fehler = { GeminiShopSucheErgebnis.Fehler(it) },
+            keineAntwort = GeminiShopSucheErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            parse = ::parseShopAngebote,
+        )
 
     /** Lädt ein per Websuche gefundenes Stock-Bild herunter (für ImageStorage.speichereVonBytes). */
     suspend fun ladeBild(url: String): ByteArray? = withContext(Dispatchers.IO) {
@@ -131,6 +163,55 @@ class GeminiService(
             })
         }
 
+    /**
+     * Gemeinsames Grundgerüst für alle Gemini-Requests dieser Klasse (Foto-
+     * Erkennung, Namens-Kandidatensuche, Namens-Vollabruf, Shop-Suche):
+     * Request absetzen, HTTP-/Offline-Fehler einheitlich behandeln, bei Erfolg
+     * den Antworttext extrahieren und an die jeweilige `parse`-Funktion
+     * übergeben. Nur Request-Aufbau und Ergebnis-Parsing unterscheiden sich
+     * zwischen den Aufrufern, daher generisch über den Ergebnistyp [T].
+     */
+    private suspend fun <T> geminiAnfrage(
+        apiKey: String,
+        requestJson: JSONObject,
+        offline: T,
+        fehler: (String) -> T,
+        keineAntwort: T,
+        parse: (String) -> T,
+    ): T = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$ENDPOINT_BASIS/$MODELL:generateContent?key=$apiKey")
+                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            ausfuehrenAbbrechbar(request).use { response ->
+                val rohantwort = response.body.string()
+                if (!response.isSuccessful) {
+                    return@withContext fehler("Gemini-API-Fehler (${response.code}): ${fehlermeldungAus(rohantwort)}")
+                }
+                val text = extrahiereText(rohantwort) ?: return@withContext keineAntwort
+                parse(text)
+            }
+        } catch (e: UnknownHostException) {
+            offline
+        } catch (e: IOException) {
+            fehler(e.message ?: "Netzwerkfehler")
+        }
+    }
+
+    /** Text-only-Variante von [baueRequestBody] — für Anfragen ohne Foto (Namenssuche, Shop-Suche). */
+    private fun baueTextRequestBody(prompt: String): JSONObject {
+        val parts = JSONArray().put(JSONObject().put("text", prompt))
+        val contents = JSONArray().put(JSONObject().put("role", "user").put("parts", parts))
+        val tools = JSONArray().put(JSONObject().put("google_search", JSONObject()))
+        val generationConfig = JSONObject().put("temperature", 0.1)
+        return JSONObject()
+            .put("contents", contents)
+            .put("tools", tools)
+            .put("generationConfig", generationConfig)
+    }
+
     private fun baueRequestBody(bildBytes: ByteArray, ean: String?): JSONObject {
         val base64Bild = Base64.encodeToString(bildBytes, Base64.NO_WRAP)
         val eanHinweis = if (!ean.isNullOrBlank()) {
@@ -150,8 +231,21 @@ class GeminiService(
 
         val contents = JSONArray().put(JSONObject().put("role", "user").put("parts", parts))
         val tools = JSONArray().put(JSONObject().put("google_search", JSONObject()))
+        // Niedrige Temperature: ohne explizite generationConfig läuft Gemini auf
+        // seinem Default (deutlich über 0), das macht sich bei wiederholten
+        // Anfragen für dasselbe Parfum (z. B. über "Daten aktualisieren") als
+        // spürbar unterschiedliche Ergebnisse bemerkbar (andere Notenauswahl,
+        // andere Formulierung, anderes Stock-Bild), obwohl sich an den echten
+        // Websuche-Treffern nichts geändert hat. Für eine Erkennungs-/Recherche-
+        // Aufgabe mit klarem JSON-Format ist Kreativität nicht gewollt — niedrige
+        // Temperature reduziert diese Varianz, ohne echte, zeitlich bedingte
+        // Änderungen (z. B. neue Websuche-Treffer) zu unterdrücken.
+        val generationConfig = JSONObject().put("temperature", 0.1)
 
-        return JSONObject().put("contents", contents).put("tools", tools)
+        return JSONObject()
+            .put("contents", contents)
+            .put("tools", tools)
+            .put("generationConfig", generationConfig)
     }
 
     private fun extrahiereText(rohantwort: String): String? = try {
@@ -197,6 +291,7 @@ class GeminiService(
                     notenHerz = json.optStringListe("notenHerz"),
                     notenBasis = json.optStringListe("notenBasis"),
                     stockBildUrl = json.optStringOrNull("stockBildUrl"),
+                    saison = json.optStringOrNull("saison"),
                 ),
             )
         } catch (e: Exception) {
@@ -209,6 +304,51 @@ class GeminiService(
         val end = text.lastIndexOf('}')
         if (start == -1 || end == -1 || end < start) return null
         return text.substring(start, end + 1)
+    }
+
+    private fun parseKandidaten(text: String): GeminiKandidatenErgebnis {
+        val jsonText = extrahiereJsonArraySubstring(text)
+            ?: return GeminiKandidatenErgebnis.Fehler("Antwort war kein gültiges JSON.")
+        return try {
+            val array = JSONArray(jsonText)
+            val kandidaten = (0 until array.length()).mapNotNull { i ->
+                val eintrag = array.optJSONObject(i) ?: return@mapNotNull null
+                val name = eintrag.optStringOrNull("name") ?: return@mapNotNull null
+                val marke = eintrag.optStringOrNull("marke") ?: return@mapNotNull null
+                PerfumeKandidat(name = name, marke = marke, kurzhinweis = eintrag.optStringOrNull("kurzhinweis"))
+            }
+            if (kandidaten.isEmpty()) GeminiKandidatenErgebnis.NichtGefunden else GeminiKandidatenErgebnis.Erfolg(kandidaten)
+        } catch (e: Exception) {
+            GeminiKandidatenErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
+        }
+    }
+
+    private fun extrahiereJsonArraySubstring(text: String): String? {
+        val start = text.indexOf('[')
+        val end = text.lastIndexOf(']')
+        if (start == -1 || end == -1 || end < start) return null
+        return text.substring(start, end + 1)
+    }
+
+    private fun parseShopAngebote(text: String): GeminiShopSucheErgebnis {
+        val jsonText = extrahiereJsonArraySubstring(text)
+            ?: return GeminiShopSucheErgebnis.Fehler("Antwort war kein gültiges JSON.")
+        return try {
+            val array = JSONArray(jsonText)
+            val angebote = (0 until array.length()).mapNotNull { i ->
+                val eintrag = array.optJSONObject(i) ?: return@mapNotNull null
+                val shopName = eintrag.optStringOrNull("shopName") ?: return@mapNotNull null
+                ShopAngebot(
+                    shopName = shopName,
+                    link = eintrag.optStringOrNull("link"),
+                    preis = eintrag.optDoubleOrNull("preis"),
+                    verfuegbarkeit = eintrag.optStringOrNull("verfuegbarkeit"),
+                )
+            }
+            if (angebote.isEmpty()) GeminiShopSucheErgebnis.NichtGefunden else GeminiShopSucheErgebnis.Erfolg(angebote)
+        } catch (e: Exception) {
+            GeminiShopSucheErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
+        }
     }
 
     private fun JSONObject.optStringOrNull(key: String): String? =
@@ -257,6 +397,20 @@ class GeminiService(
             niemals eine vermutete/konstruierte URL. Im Zweifel lieber null
             als eine URL, die nicht wirklich existiert.
 
+            Wähle unter mehreren gefundenen Bildern IMMER nach derselben
+            Priorität (nicht das erstbeste nehmen):
+            1. Offizielles Produktbild von der Marken-/Herstellerseite
+            2. Produktbild eines großen, seriösen Parfum-Händlers (z. B.
+               Douglas, Flaconi, Notino, Sephora)
+            3. Produktbild einer etablierten Duft-Datenbank (Parfumo,
+               Fragrantica)
+            Bevorzuge dabei den klassischen Flakon-Frontal-Shot auf
+            neutralem/weißem Hintergrund (Packshot) vor Lifestyle-Fotos,
+            Werbebannern oder Bildern mit sichtbarem Wasserzeichen/Text-
+            Overlay. Wenn dieselbe Marke/dasselbe Produkt in mehreren
+            Quellen mit erkennbar demselben Packshot auftaucht, ist das ein
+            gutes Zeichen für das korrekte, offizielle Bild — dieses wählen.
+
             Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt (kein
             Markdown, kein Fließtext davor oder danach) exakt in diesem Format:
             {
@@ -270,6 +424,7 @@ class GeminiService(
               "notenHerz": string[] (Herznoten der Duftpyramide),
               "notenBasis": string[] (Basisnoten der Duftpyramide),
               "stockBildUrl": string oder null (direkte Bild-URL, siehe Regel oben),
+              "saison": string oder null (einer von exakt: "Frühling/Sommer", "Herbst/Winter", "Ganzjährig" — nur setzen, wenn über die Websuche wirklich auffindbar, sonst null),
               "nichtGenugDaten": boolean (true NUR falls Marke UND Name nicht sicher identifizierbar sind)
             }
 
@@ -279,6 +434,114 @@ class GeminiService(
             auf null/leer. "nichtGenugDaten" gilt ausschließlich für den Fall,
             dass das Parfum selbst nicht identifiziert werden kann. Rate nie —
             weder beim Namen noch bei der stockBildUrl.
+        """.trimIndent()
+
+        /** Phase 8b, Schritt 1: nur der Name ist bekannt, noch kein Foto. */
+        fun promptKandidaten(name: String) = """
+            Ein Nutzer kennt von einem Parfum nur diesen Namen, ohne Foto:
+            "$name". Finde per Websuche das/die dazu passenden Parfums.
+
+            Wenn der Name eindeutig zu genau einem Parfum (einer Marke)
+            passt: gib genau einen Kandidaten zurück. Wenn derselbe Name zu
+            mehreren unterschiedlichen Marken oder Duftlinien passt (z. B.
+            weil mehrere Marken ein Parfum mit ähnlichem/gleichem Namen
+            führen): gib bis zu 5 plausible Kandidaten zurück, jeweils klar
+            unterscheidbar. Erfinde keine Kandidaten, die du nicht wirklich
+            in der Websuche gefunden hast.
+
+            Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Array (kein
+            Markdown, kein Fließtext davor oder danach) exakt in diesem
+            Format, leeres Array falls nichts Plausibles gefunden wurde:
+            [
+              {
+                "name": string (exakter Produktname),
+                "marke": string,
+                "kurzhinweis": string oder null (max. 1 kurzer Satz, der bei
+                  mehreren Kandidaten beim Unterscheiden hilft, z. B. Duftart
+                  oder Erscheinungsjahr)
+              }
+            ]
+        """.trimIndent()
+
+        /** Phase 8b, Schritt 2: Marke+Name stehen nach der Kandidatenwahl schon fest, kein Foto. */
+        fun promptNamensSuche(name: String, marke: String, ean: String?): String {
+            val eanHinweis = if (!ean.isNullOrBlank()) {
+                "\nDer Barcode (EAN) des Produkts lautet: $ean — nutze das als zusätzlichen Hinweis."
+            } else {
+                ""
+            }
+            return """
+                Du bist ein Parfum-Experte. Marke und Produktname stehen
+                bereits fest (vom Nutzer bestätigt, kein Foto vorhanden):
+                Marke "$marke", Name "$name".$eanHinweis
+
+                Führe eine Websuche durch, um zu diesem konkreten Parfum
+                Zusatzinformationen zu finden (unverbindliche Preisempfehlung,
+                verfügbare Flakongrößen, Duftpyramide, Saison, ein offizielles
+                Produktbild) — verlass dich nicht nur auf Trainingswissen, das
+                kann veraltet sein. Bevorzuge dabei etablierte Duft-Datenbanken
+                (z. B. Parfumo, Fragrantica) und offizielle Marken-/
+                Händlerseiten gegenüber unklaren Quellen.
+
+                Für "stockBildUrl" gilt eine harte Regel: nur eine URL
+                eintragen, die DIREKT auf eine Bilddatei zeigt (endet auf
+                .jpg/.jpeg/.png/.webp) und tatsächlich in einem Suchergebnis
+                gesehen wurde — niemals eine vermutete/konstruierte URL. Im
+                Zweifel lieber null als eine URL, die nicht wirklich existiert.
+                Wähle unter mehreren gefundenen Bildern dieselbe Priorität wie
+                sonst üblich: offizielle Marke vor großem Händler vor
+                Duft-Datenbank, klassischer Packshot vor Lifestyle-Foto.
+
+                Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt (kein
+                Markdown, kein Fließtext davor oder danach) exakt in diesem
+                Format:
+                {
+                  "name": string,
+                  "marke": string,
+                  "beschreibung": string oder null (kurze, prägnante Duftbeschreibung, max. 2 Sätze),
+                  "uvp": number oder null (unverbindliche Preisempfehlung in Euro, nur die Zahl),
+                  "flakongroesse": string oder null,
+                  "verfuegbareGroessen": string oder null (z. B. "30ml, 50ml, 100ml"),
+                  "notenKopf": string[] (Kopfnoten der Duftpyramide),
+                  "notenHerz": string[] (Herznoten der Duftpyramide),
+                  "notenBasis": string[] (Basisnoten der Duftpyramide),
+                  "stockBildUrl": string oder null (direkte Bild-URL, siehe Regel oben),
+                  "saison": string oder null (einer von exakt: "Frühling/Sommer", "Herbst/Winter", "Ganzjährig"),
+                  "nichtGenugDaten": boolean (true NUR falls zu diesem Parfum praktisch nichts auffindbar ist)
+                }
+
+                Wenn nur einzelne Felder (z. B. Duftpyramide, UVP) über die
+                Websuche nicht auffindbar sind, setze NICHT "nichtGenugDaten"
+                auf true — lass diese Felder einfach auf null/leer. Rate nie.
+            """.trimIndent()
+        }
+
+        /** Phase 8c: aktuell verfügbare Online-Shops für ein konkretes Parfum. */
+        fun promptShopSuche(name: String, marke: String) = """
+            Finde per Websuche aktuell verfügbare Online-Shops für das
+            Parfum "$name" von "$marke". Für jeden gefundenen Shop:
+            Shop-Name, Link zur Produktseite, aktueller Preis in Euro (falls
+            ermittelbar) und ein kurzer Verfügbarkeits-Hinweis (z. B.
+            "lagernd", "nicht lagernd", "auf Anfrage") falls ermittelbar.
+
+            Für "link" gilt eine harte Regel: nur eine URL eintragen, die
+            tatsächlich in einem Suchergebnis gesehen wurde — niemals eine
+            vermutete/konstruierte URL. Im Zweifel lieber null als eine URL,
+            die nicht wirklich existiert. Trage nur Shops ein, bei denen du
+            wirklich eine passende Produktseite gefunden hast, keine reinen
+            Vermutungen.
+
+            Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Array (kein
+            Markdown, kein Fließtext davor oder danach) exakt in diesem
+            Format, leeres Array falls kein Shop gefunden wurde:
+            [
+              {
+                "shopName": string,
+                "link": string oder null (siehe Regel oben),
+                "preis": number oder null (nur die Zahl in Euro),
+                "verfuegbarkeit": string oder null
+              }
+            ]
         """.trimIndent()
     }
 }

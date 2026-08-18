@@ -10,6 +10,7 @@ import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.Saison
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
 import com.daywalker91.parfumsammlung.data.gemini.GeminiService
@@ -52,6 +53,7 @@ data class PerfumeEditorUiState(
     val verfuegbareGroessen: String = "",
     val notiz: String = "",
     val bewertung: Int? = null,
+    val saison: Saison? = null,
     val noten: List<NotenEingabe> = emptyList(),
     val bildPfadEigen: String? = null,
     val bildPfadStock: String? = null,
@@ -88,6 +90,7 @@ class PerfumeEditorViewModel(
             flakongroesse = vorschlag?.flakongroesse.orEmpty(),
             ean = initialEan.orEmpty(),
             verfuegbareGroessen = vorschlag?.verfuegbareGroessen.orEmpty(),
+            saison = vorschlag?.saison?.let { Saison.ausLabel(it) },
             noten = (vorschlag?.notenKopf.orEmpty().map { NotenEingabe(it, Position.KOPF) } +
                 vorschlag?.notenHerz.orEmpty().map { NotenEingabe(it, Position.HERZ) } +
                 vorschlag?.notenBasis.orEmpty().map { NotenEingabe(it, Position.BASIS) }),
@@ -117,6 +120,7 @@ class PerfumeEditorViewModel(
                     verfuegbareGroessen = perfume.verfuegbareGroessen.orEmpty(),
                     notiz = perfume.notiz.orEmpty(),
                     bewertung = perfume.bewertung,
+                    saison = perfume.saison,
                     noten = noten.map { NotenEingabe(it.name, it.position) },
                     bildPfadEigen = perfume.bildPfadEigen,
                     bildPfadStock = perfume.bildPfadStock,
@@ -147,6 +151,7 @@ class PerfumeEditorViewModel(
     fun verfuegbareGroessenGeaendert(value: String) = _uiState.update { it.copy(verfuegbareGroessen = value) }
     fun notizGeaendert(value: String) = _uiState.update { it.copy(notiz = value) }
     fun bewertungGeaendert(value: Int?) = _uiState.update { it.copy(bewertung = value) }
+    fun saisonGeaendert(value: Saison?) = _uiState.update { it.copy(saison = value) }
 
     fun noteHinzufuegen(name: String, position: Position) {
         if (name.isBlank()) return
@@ -232,6 +237,7 @@ class PerfumeEditorViewModel(
                             uvp = vorschlag.uvp?.toString() ?: it.uvp,
                             flakongroesse = vorschlag.flakongroesse ?: it.flakongroesse,
                             verfuegbareGroessen = vorschlag.verfuegbareGroessen ?: it.verfuegbareGroessen,
+                            saison = vorschlag.saison?.let { label -> Saison.ausLabel(label) } ?: it.saison,
                             noten = if (vorschlag.notenKopf.isEmpty() && vorschlag.notenHerz.isEmpty() && vorschlag.notenBasis.isEmpty()) {
                                 it.noten
                             } else {
@@ -323,6 +329,7 @@ class PerfumeEditorViewModel(
             verfuegbareGroessen = state.verfuegbareGroessen.trim().ifBlank { null },
             notiz = state.notiz.trim().ifBlank { null },
             bewertung = state.bewertung,
+            saison = state.saison,
             bildPfadEigen = state.bildPfadEigen,
             bildPfadStock = state.bildPfadStock,
             aktivesBild = state.aktivesBild,

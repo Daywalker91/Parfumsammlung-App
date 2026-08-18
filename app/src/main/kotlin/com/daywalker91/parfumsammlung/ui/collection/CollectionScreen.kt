@@ -1,6 +1,8 @@
 package com.daywalker91.parfumsammlung.ui.collection
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,14 +15,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
@@ -49,6 +59,8 @@ import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
 import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
+import com.daywalker91.parfumsammlung.data.Saison
+import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.update.ApkDownloader
 import com.daywalker91.parfumsammlung.data.update.UpdateChannelStore
 import com.daywalker91.parfumsammlung.data.update.UpdateChecker
@@ -63,12 +75,13 @@ fun CollectionScreen(
     updateChecker: UpdateChecker,
     apkDownloader: ApkDownloader,
     updateChannelStore: UpdateChannelStore,
+    sortPreferenceStore: SortPreferenceStore,
     onPerfumeClick: (Long) -> Unit,
     onAddClick: () -> Unit,
     onSettingsClick: () -> Unit,
 ) {
     val viewModel: CollectionViewModel = viewModel(
-        factory = viewModelFactory { initializer { CollectionViewModel(repository) } },
+        factory = viewModelFactory { initializer { CollectionViewModel(repository, sortPreferenceStore) } },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var ausgewaehlterTab by remember { mutableIntStateOf(0) }
@@ -113,6 +126,13 @@ fun CollectionScreen(
                 )
             }
 
+            SuchUndFilterLeiste(
+                uiState = uiState,
+                onSuchtextAendern = viewModel::sucheAendern,
+                onMarkeFilterAendern = viewModel::markeFilterAendern,
+                onSaisonFilterAendern = viewModel::saisonFilterAendern,
+            )
+
             val angezeigtePerfumes = if (ausgewaehlterTab == 0) uiState.besitzt else uiState.wunschliste
 
             if (angezeigtePerfumes.isEmpty()) {
@@ -147,6 +167,65 @@ fun CollectionScreen(
     }
 
     UpdateDialog(uiState = updateUiState, viewModel = updateViewModel)
+}
+
+/** Volltextsuche über den Namen + Marke-/Saison-Filter — wirkt implizit kontextabhängig auf den gerade aktiven Tab. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SuchUndFilterLeiste(
+    uiState: CollectionUiState,
+    onSuchtextAendern: (String) -> Unit,
+    onMarkeFilterAendern: (String?) -> Unit,
+    onSaisonFilterAendern: (Saison?) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = uiState.suchtext,
+            onValueChange = onSuchtextAendern,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(stringResource(R.string.suche_hinweis)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+        )
+
+        var markeMenuOffen by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(expanded = markeMenuOffen, onExpandedChange = { markeMenuOffen = it }) {
+            OutlinedTextField(
+                value = uiState.markeFilter ?: stringResource(R.string.filter_alle_marken),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.filter_marke)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = markeMenuOffen) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            )
+            DropdownMenu(expanded = markeMenuOffen, onDismissRequest = { markeMenuOffen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.filter_alle_marken)) },
+                    onClick = { onMarkeFilterAendern(null); markeMenuOffen = false },
+                )
+                uiState.verfuegbareMarken.forEach { marke ->
+                    DropdownMenuItem(
+                        text = { Text(marke) },
+                        onClick = { onMarkeFilterAendern(marke); markeMenuOffen = false },
+                    )
+                }
+            }
+        }
+
+        Text(text = stringResource(R.string.filter_saison), style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Saison.entries.forEach { saison ->
+                FilterChip(
+                    selected = uiState.saisonFilter == saison,
+                    onClick = { onSaisonFilterAendern(if (uiState.saisonFilter == saison) null else saison) },
+                    label = { Text(saison.label()) },
+                )
+            }
+        }
+    }
 }
 
 @Composable

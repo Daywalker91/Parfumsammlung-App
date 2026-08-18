@@ -121,4 +121,38 @@
     <string name="kanal_experimental">Experimental</string>
     <string name="update_kanal_erklaerung">Stable prüft nur reguläre GitHub-Releases. Experimental bezieht zusätzlich Pre-Releases mit ein. Diese Einstellung bleibt dauerhaft gespeichert, unabhängig davon, ob dieses Menü gerade sichtbar ist.</string>
     <string name="nach_updates_suchen">Nach Updates suchen</string>
+
+    <!-- Sortierung & Filter (Phase 8a) -->
+    <string name="feld_saison">Saison</string>
+    <string name="suche_hinweis">Suche nach Name…</string>
+    <string name="filter_marke">Marke</string>
+    <string name="filter_alle_marken">Alle Marken</string>
+    <string name="filter_saison">Saison</string>
+    <string name="sortierung_titel">Sortierung</string>
+    <string name="sortierung_name">Name</string>
+    <string name="sortierung_marke">Marke</string>
+    <string name="sortierung_preis">Preis</string>
+
+    <!-- Manuelle Suche (Phase 8b) -->
+    <string name="manuelle_suche_button">Nach Name suchen</string>
+    <string name="manuelle_suche_titel">Nach Name suchen</string>
+    <string name="manuelle_suche_feld">Name des Parfums</string>
+    <string name="manuelle_suche_suchen">Suchen</string>
+    <string name="manuelle_suche_bestaetigung_titel">Meinten Sie …?</string>
+    <string name="manuelle_suche_bestaetigung_text">„%1$s\" von %2$s?</string>
+    <string name="manuelle_suche_ja">Ja</string>
+    <string name="manuelle_suche_nein">Nein</string>
+    <string name="manuelle_suche_kandidaten_titel">Mehrere Treffer gefunden — bitte auswählen:</string>
+    <string name="hinweis_nicht_gefunden_titel">Nichts gefunden</string>
+    <string name="hinweis_nicht_gefunden_text">Zu diesem Namen konnte nichts Passendes gefunden werden. Versuch es mit einem anderen Suchbegriff, oder nutze die manuelle Eingabe.</string>
+    <string name="manuelle_suche_hinweis_kein_api_key_text">Die Namenssuche braucht einen Gemini-API-Key (Einstellungen → Gemini-API-Key). Ohne Key bleibt nur die manuelle Eingabe.</string>
+
+    <!-- Shop-Suche (Phase 8c) -->
+    <string name="shops_titel">Online-Shops</string>
+    <string name="shops_suchen">Shops suchen</string>
+    <string name="shops_momentaufnahme_hinweis">Momentaufnahme zum Abrufzeitpunkt, keine laufende Preisüberwachung.</string>
+    <string name="shops_keine_gefunden">Keine Shop-Angebote gefunden.</string>
+    <string name="shops_hinweis_kein_api_key">Shop-Suche braucht einen Gemini-API-Key (Einstellungen → Gemini-API-Key).</string>
+    <string name="shops_hinweis_offline">Die Shop-Suche braucht eine Internetverbindung.</string>
+    <string name="shops_hinweis_nicht_gefunden">Keine Shop-Angebote gefunden.</string>
 </resources>
