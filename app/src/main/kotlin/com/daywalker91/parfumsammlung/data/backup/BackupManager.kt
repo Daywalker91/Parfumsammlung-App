@@ -9,6 +9,7 @@ import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.Saison
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -51,6 +52,7 @@ class BackupManager(
                         put("verfuegbareGroessen", perfume.verfuegbareGroessen)
                         put("notiz", perfume.notiz)
                         put("bewertung", perfume.bewertung ?: JSONObject.NULL)
+                        put("saison", perfume.saison?.name)
                         put("erstelltAm", perfume.erstelltAm)
                         put("bildDateiEigen", perfume.bildPfadEigen?.let { File(it).name })
                         put("bildDateiStock", perfume.bildPfadStock?.let { File(it).name })
@@ -159,6 +161,7 @@ class BackupManager(
                     verfuegbareGroessen = eintrag.optStringOrNull("verfuegbareGroessen"),
                     notiz = eintrag.optStringOrNull("notiz"),
                     bewertung = eintrag.optIntOrNullSafe("bewertung"),
+                    saison = eintrag.optStringOrNull("saison")?.let { Saison.valueOf(it) },
                     erstelltAm = eintrag.optLong("erstelltAm", System.currentTimeMillis()),
                     bildPfadEigen = bildPfadEigen,
                     bildPfadStock = bildPfadStock,

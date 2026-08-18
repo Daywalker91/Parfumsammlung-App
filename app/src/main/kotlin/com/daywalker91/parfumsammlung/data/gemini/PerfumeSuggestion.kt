@@ -13,4 +13,6 @@ data class PerfumeSuggestion(
     val notenBasis: List<String> = emptyList(),
     /** Per Google Search Grounding gefundenes Produktbild, falls vorhanden. */
     val stockBildUrl: String? = null,
+    /** Eines der drei Saison.label()-Werte als Freitext (siehe Perfume.kt), oder null falls nicht auffindbar. */
+    val saison: String? = null,
 )

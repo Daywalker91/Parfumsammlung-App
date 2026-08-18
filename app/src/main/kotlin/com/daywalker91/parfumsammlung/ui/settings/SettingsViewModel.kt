@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daywalker91.parfumsammlung.data.SortMode
+import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -29,14 +31,18 @@ data class SettingsUiState(
     /** Nur In-Memory/Session-State — resettet beim Schließen der App (siehe Plan). */
     val versionZeilenTaps: Int = 0,
     val backupLaeuft: Boolean = false,
+    val sortMode: SortMode = SortMode.NAME,
 )
 
 class SettingsViewModel(
     private val apiKeyStore: GeminiApiKeyStore,
     private val backupManager: BackupManager,
+    private val sortPreferenceStore: SortPreferenceStore,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SettingsUiState(apiKey = apiKeyStore.getKey().orEmpty()))
+    private val _uiState = MutableStateFlow(
+        SettingsUiState(apiKey = apiKeyStore.getKey().orEmpty(), sortMode = sortPreferenceStore.getSortMode()),
+    )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     private val _backupHinweis = MutableSharedFlow<BackupHinweis>(extraBufferCapacity = 1)
@@ -51,6 +57,11 @@ class SettingsViewModel(
     }
 
     fun versionZeileGetippt() = _uiState.update { it.copy(versionZeilenTaps = it.versionZeilenTaps + 1) }
+
+    fun sortModeGeaendert(mode: SortMode) {
+        sortPreferenceStore.setSortMode(mode)
+        _uiState.update { it.copy(sortMode = mode) }
+    }
 
     fun backupExportieren(context: Context, zielUri: Uri) {
         viewModelScope.launch {

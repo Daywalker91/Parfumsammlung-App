@@ -25,6 +25,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -42,6 +45,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.initializer
 import com.daywalker91.parfumsammlung.BuildConfig
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.SortMode
+import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import java.text.SimpleDateFormat
@@ -53,11 +58,12 @@ import java.util.Locale
 fun SettingsScreen(
     apiKeyStore: GeminiApiKeyStore,
     backupManager: BackupManager,
+    sortPreferenceStore: SortPreferenceStore,
     onBack: () -> Unit,
     onDevOptionsClick: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = viewModel(
-        factory = viewModelFactory { initializer { SettingsViewModel(apiKeyStore, backupManager) } },
+        factory = viewModelFactory { initializer { SettingsViewModel(apiKeyStore, backupManager, sortPreferenceStore) } },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -142,6 +148,24 @@ fun SettingsScreen(
             }
             if (uiState.backupLaeuft) {
                 CircularProgressIndicator()
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(stringResource(R.string.sortierung_titel), style = MaterialTheme.typography.titleMedium)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val optionen = listOf(
+                    SortMode.NAME to R.string.sortierung_name,
+                    SortMode.MARKE to R.string.sortierung_marke,
+                    SortMode.UVP to R.string.sortierung_preis,
+                )
+                optionen.forEachIndexed { index, (mode, labelRes) ->
+                    SegmentedButton(
+                        selected = uiState.sortMode == mode,
+                        onClick = { viewModel.sortModeGeaendert(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = optionen.size),
+                    ) { Text(stringResource(labelRes)) }
+                }
             }
 
             Text(

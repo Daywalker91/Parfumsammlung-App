@@ -21,4 +21,10 @@ class Converters {
 
     @TypeConverter
     fun toPosition(value: String): Position = Position.valueOf(value)
+
+    @TypeConverter
+    fun fromSaison(value: Saison?): String? = value?.name
+
+    @TypeConverter
+    fun toSaison(value: String?): Saison? = value?.let { Saison.valueOf(it) }
 }

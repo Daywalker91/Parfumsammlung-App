@@ -5,6 +5,7 @@ import com.daywalker91.parfumsammlung.data.AppDatabase
 import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
+import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import com.daywalker91.parfumsammlung.data.gemini.GeminiService
@@ -37,6 +38,8 @@ class AppContainer(private val context: Context) {
     val apkDownloader: ApkDownloader by lazy { ApkDownloader(context) }
 
     val updateChannelStore: UpdateChannelStore by lazy { UpdateChannelStore(context) }
+
+    val sortPreferenceStore: SortPreferenceStore by lazy { SortPreferenceStore(context) }
 
     val backupManager: BackupManager by lazy { BackupManager(perfumeRepository, imageStorage) }
 }

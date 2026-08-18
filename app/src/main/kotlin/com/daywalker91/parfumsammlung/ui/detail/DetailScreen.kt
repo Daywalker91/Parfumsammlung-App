@@ -1,8 +1,10 @@
 package com.daywalker91.parfumsammlung.ui.detail
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,11 +16,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.SegmentedButton
@@ -29,14 +35,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,21 +59,33 @@ import com.daywalker91.parfumsammlung.data.AktivesBild
 import com.daywalker91.parfumsammlung.data.NoteWithPosition
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
+import com.daywalker91.parfumsammlung.data.gemini.GeminiService
+import com.daywalker91.parfumsammlung.data.gemini.ShopAngebot
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     perfumeId: Long,
     repository: PerfumeRepository,
+    geminiService: GeminiService,
+    apiKeyStore: GeminiApiKeyStore,
     onEditClick: () -> Unit,
     onBack: () -> Unit,
     onDeleted: () -> Unit,
 ) {
     val viewModel: DetailViewModel = viewModel(
-        factory = viewModelFactory { initializer { DetailViewModel(perfumeId, repository) } },
+        factory = viewModelFactory { initializer { DetailViewModel(perfumeId, repository, geminiService, apiKeyStore) } },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var zeigeLoeschDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.shopSucheHinweis.collect { hinweis ->
+            Toast.makeText(context, shopSucheHinweisText(context, hinweis), Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -145,7 +167,15 @@ fun DetailScreen(
                     when (ausgewaehlterTab) {
                         0 -> InfoTab(perfume.beschreibung, uiState.notes)
                         1 -> BewertungTab(perfume.bewertung, perfume.notiz)
-                        2 -> PreisTab(perfume.uvp, perfume.flakongroesse, perfume.verfuegbareGroessen, perfume.ean)
+                        2 -> {
+                            PreisTab(perfume.uvp, perfume.flakongroesse, perfume.verfuegbareGroessen, perfume.ean)
+                            ShopSucheSektion(
+                                angebote = uiState.shopAngebote,
+                                laeuft = uiState.shopSucheLaeuft,
+                                abgerufen = uiState.shopSucheAbgerufen,
+                                onSuchen = viewModel::shopSucheStarten,
+                            )
+                        }
                     }
                 }
             }
@@ -228,6 +258,69 @@ private fun PreisTab(uvp: Double?, flakongroesse: String?, verfuegbareGroessen: 
     if (uvp == null && flakongroesse == null && verfuegbareGroessen == null && ean == null) {
         Text(text = stringResource(R.string.keine_angaben), style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+/**
+ * Shop-Suche (Phase 8c) — bewusst nur auf expliziten Nutzer-Tap (Erstabruf-
+ * Button bzw. Refresh-Icon), reine Momentaufnahme, wird nirgends persistiert.
+ */
+@Composable
+private fun ShopSucheSektion(
+    angebote: List<ShopAngebot>,
+    laeuft: Boolean,
+    abgerufen: Boolean,
+    onSuchen: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.shops_titel), style = MaterialTheme.typography.titleMedium)
+        if (abgerufen) {
+            IconButton(onClick = onSuchen, enabled = !laeuft) {
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.shops_suchen))
+            }
+        }
+    }
+
+    if (!abgerufen) {
+        OutlinedButton(onClick = onSuchen, enabled = !laeuft) {
+            Text(stringResource(R.string.shops_suchen))
+        }
+        Text(stringResource(R.string.shops_momentaufnahme_hinweis), style = MaterialTheme.typography.bodySmall)
+    }
+
+    if (laeuft) {
+        CircularProgressIndicator()
+    }
+
+    if (abgerufen && !laeuft) {
+        if (angebote.isEmpty()) {
+            Text(stringResource(R.string.shops_keine_gefunden), style = MaterialTheme.typography.bodyMedium)
+        } else {
+            val uriHandler = LocalUriHandler.current
+            angebote.forEach { angebot ->
+                Card(
+                    onClick = { angebot.link?.let { uriHandler.openUri(it) } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(text = angebot.shopName, style = MaterialTheme.typography.titleSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            angebot.preis?.let { Text("$it €", style = MaterialTheme.typography.bodyMedium) }
+                            angebot.verfuegbarkeit?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Nicht-@Composable, da innerhalb eines LaunchedEffect (Coroutine) aufgerufen —
+ * dort ist stringResource() nicht erlaubt, context.getString() aber schon. */
+private fun shopSucheHinweisText(context: android.content.Context, hinweis: ShopSucheHinweis): String = when (hinweis) {
+    ShopSucheHinweis.KeinApiKey -> context.getString(R.string.shops_hinweis_kein_api_key)
+    ShopSucheHinweis.Offline -> context.getString(R.string.shops_hinweis_offline)
+    ShopSucheHinweis.NichtGefunden -> context.getString(R.string.shops_hinweis_nicht_gefunden)
+    is ShopSucheHinweis.Fehler -> hinweis.nachricht
 }
 
 /**

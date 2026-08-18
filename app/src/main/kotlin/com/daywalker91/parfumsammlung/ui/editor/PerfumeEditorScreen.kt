@@ -8,6 +8,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,6 +68,7 @@ import com.daywalker91.parfumsammlung.data.NotenEingabe
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
+import com.daywalker91.parfumsammlung.data.Saison
 import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
 import com.daywalker91.parfumsammlung.data.gemini.GeminiService
 import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
@@ -221,6 +223,19 @@ fun PerfumeEditorScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            Text(stringResource(R.string.feld_saison), style = MaterialTheme.typography.titleMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Saison.entries.forEach { saison ->
+                    FilterChip(
+                        selected = uiState.saison == saison,
+                        onClick = {
+                            viewModel.saisonGeaendert(if (uiState.saison == saison) null else saison)
+                        },
+                        label = { Text(saison.label()) },
+                    )
+                }
+            }
 
             BewertungAuswahl(bewertung = uiState.bewertung, onBewertungGeaendert = viewModel::bewertungGeaendert)
 
