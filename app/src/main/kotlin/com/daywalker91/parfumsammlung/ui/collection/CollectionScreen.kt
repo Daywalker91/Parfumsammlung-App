@@ -289,9 +289,12 @@ private fun SuchUndFilterLeiste(
 
         Text(text = stringResource(R.string.filter_saison), style = MaterialTheme.typography.labelLarge)
         // Bewusst Row+weight statt FlowRow: alle drei Chips bleiben immer in
-        // einer Zeile und teilen sich die Breite gleichmäßig (passt sich damit
-        // automatisch an schmalere Bildschirme an), statt dass der dritte Chip
-        // auf eine zweite Zeile umbricht (Nutzer-Feedback).
+        // einer Zeile und teilen sich die Breite gleichmäßig, statt dass der
+        // dritte Chip auf eine zweite Zeile umbricht (Nutzer-Feedback). Die
+        // Absicherung dafür ist maxLines=1+Ellipsis am Text, nicht eine
+        // kleinere Schrift — auf sehr schmalen Bildschirmen wird der Text im
+        // Zweifel gekürzt ("Frühling/S…") statt umzubrechen, die Schriftgröße
+        // bleibt regulär lesbar (zweite Nutzer-Rückmeldung: erst zu klein).
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
             Saison.entries.forEach { saison ->
                 FilterChip(
@@ -300,7 +303,7 @@ private fun SuchUndFilterLeiste(
                     label = {
                         Text(
                             text = saison.label(),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )

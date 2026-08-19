@@ -239,7 +239,7 @@ fun PerfumeEditorScreen(
                         label = {
                             Text(
                                 text = saison.label(),
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelLarge,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
