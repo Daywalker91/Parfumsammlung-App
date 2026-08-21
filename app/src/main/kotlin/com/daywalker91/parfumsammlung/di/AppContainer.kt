@@ -1,6 +1,7 @@
 package com.daywalker91.parfumsammlung.di
 
 import android.content.Context
+import androidx.work.WorkManager
 import com.daywalker91.parfumsammlung.data.AppDatabase
 import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
@@ -10,6 +11,7 @@ import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.SpendenLinkStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
+import com.daywalker91.parfumsammlung.data.batch.BatchErgebnisStore
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
 import com.daywalker91.parfumsammlung.data.claude.ClaudeService
 import com.daywalker91.parfumsammlung.data.update.ApkDownloader
@@ -52,4 +54,9 @@ class AppContainer(private val context: Context) {
     val bildDownloader: BildDownloader by lazy { BildDownloader() }
 
     val spendenLinkStore: SpendenLinkStore by lazy { SpendenLinkStore(context) }
+
+    // Batch-Fotoimport (Feature 6).
+    val workManager: WorkManager by lazy { WorkManager.getInstance(context) }
+
+    val batchErgebnisStore: BatchErgebnisStore by lazy { BatchErgebnisStore(context) }
 }
