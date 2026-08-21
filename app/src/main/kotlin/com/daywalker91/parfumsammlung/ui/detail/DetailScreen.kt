@@ -1,5 +1,6 @@
 package com.daywalker91.parfumsammlung.ui.detail
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,15 +55,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.initializer
+import androidx.core.content.FileProvider
 import coil3.compose.AsyncImage
 import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.AktivesBild
 import com.daywalker91.parfumsammlung.data.NoteWithPosition
+import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.Position
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
 import com.daywalker91.parfumsammlung.data.claude.ClaudeService
 import com.daywalker91.parfumsammlung.data.model.ShopAngebot
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +86,7 @@ fun DetailScreen(
     var zeigeLoeschDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val teilenText = stringResource(R.string.teilen)
     LaunchedEffect(Unit) {
         viewModel.shopSucheHinweis.collect { hinweis ->
             Toast.makeText(context, shopSucheHinweisText(context, hinweis), Toast.LENGTH_LONG).show()
@@ -97,6 +103,11 @@ fun DetailScreen(
                     }
                 },
                 actions = {
+                    uiState.perfume?.let { perfume ->
+                        IconButton(onClick = { teilen(context, perfume, teilenText) }) {
+                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.teilen))
+                        }
+                    }
                     IconButton(onClick = onEditClick) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.bearbeiten))
                     }
@@ -116,10 +127,7 @@ fun DetailScreen(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val angezeigterPfad = when (perfume.aktivesBild) {
-                        AktivesBild.STOCK -> perfume.bildPfadStock ?: perfume.bildPfadEigen
-                        else -> perfume.bildPfadEigen ?: perfume.bildPfadStock
-                    }
+                    val angezeigterPfad = aktivesBildPfad(perfume)
                     if (angezeigterPfad != null) {
                         AsyncImage(
                             model = angezeigterPfad,
@@ -312,6 +320,36 @@ private fun ShopSucheSektion(
             }
         }
     }
+}
+
+/** Eigenes Foto bevorzugt, sonst Stock-Bild — analog zur Anzeige-Logik oben im Header. */
+private fun aktivesBildPfad(perfume: Perfume): String? = when (perfume.aktivesBild) {
+    AktivesBild.STOCK -> perfume.bildPfadStock ?: perfume.bildPfadEigen
+    else -> perfume.bildPfadEigen ?: perfume.bildPfadStock
+}
+
+/**
+ * Eine kombinierte Teilen-Aktion statt getrennter "nur Bild"/"ganzer Duft"-
+ * Buttons — die meisten Ziel-Apps (WhatsApp, Mail, Messages) zeigen Bild+
+ * Text kombiniert korrekt an. Nutzt den bereits vorhandenen FileProvider
+ * (siehe file_paths.xml, deckt filesDir/images/ schon ab — keine weitere
+ * Manifest-Änderung nötig).
+ */
+private fun teilen(context: android.content.Context, perfume: Perfume, chooserTitel: String) {
+    val text = listOfNotNull(perfume.marke, perfume.name, perfume.beschreibung).joinToString("\n")
+    val bildPfad = aktivesBildPfad(perfume)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        putExtra(Intent.EXTRA_TEXT, text)
+        if (bildPfad != null) {
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", File(bildPfad))
+            type = "image/jpeg"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } else {
+            type = "text/plain"
+        }
+    }
+    context.startActivity(Intent.createChooser(intent, chooserTitel))
 }
 
 /** Nicht-@Composable, da innerhalb eines LaunchedEffect (Coroutine) aufgerufen —
