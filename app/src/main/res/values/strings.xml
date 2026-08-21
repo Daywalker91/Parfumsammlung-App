@@ -91,6 +91,17 @@
     <!-- Spenden-Link (PayPal o. ä.) -->
     <string name="spenden_link_feld">Spenden-Link (z. B. PayPal.me)</string>
     <string name="spenden_button">Spenden</string>
+
+    <!-- Batch-Fotoimport (Feature 6) -->
+    <string name="batch_review_titel">Fotos prüfen</string>
+    <string name="batch_review_laeuft">Bild %1$d von %2$d wird erkannt …</string>
+    <string name="batch_review_fehlgeschlagen">Der Batch ist fehlgeschlagen oder wurde abgebrochen.</string>
+    <string name="batch_review_anzahl">%1$d Fotos</string>
+    <string name="batch_review_alle_uebernehmen">Alle übernehmen</string>
+    <string name="batch_review_fehler_unbekannt">Erkennung fehlgeschlagen.</string>
+    <string name="batch_review_im_editor_oeffnen">Im Editor öffnen</string>
+    <string name="batch_review_duplikat">Bereits vorhanden — wird übersprungen</string>
+    <string name="uebernehmen">Übernehmen</string>
     <string name="gespeichert">Gespeichert.</string>
 
     <string name="hinweis_kein_api_key_titel">Kein API-Key hinterlegt</string>

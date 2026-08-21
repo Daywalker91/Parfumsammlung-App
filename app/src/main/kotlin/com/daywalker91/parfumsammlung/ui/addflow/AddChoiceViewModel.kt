@@ -3,9 +3,14 @@ package com.daywalker91.parfumsammlung.ui.addflow
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
+import com.daywalker91.parfumsammlung.data.batch.PerfumeBatchWorker
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
 import com.daywalker91.parfumsammlung.data.claude.ClaudeService
 import com.daywalker91.parfumsammlung.data.claude.ErkennungErgebnis
@@ -36,6 +41,7 @@ data class AddChoiceUiState(
     val ladeVorgang: Boolean = false,
     val hinweis: AddHinweis? = null,
     val navigiereZuEditor: Boolean = false,
+    val navigiereZuBatchReview: Boolean = false,
 )
 
 class AddChoiceViewModel(
@@ -43,6 +49,7 @@ class AddChoiceViewModel(
     private val claudeService: ClaudeService,
     private val apiKeyStore: ClaudeApiKeyStore,
     private val bildDownloader: BildDownloader,
+    private val workManager: WorkManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddChoiceUiState())
@@ -70,6 +77,37 @@ class AddChoiceViewModel(
     fun hinweisSchliessen() = _uiState.update { it.copy(hinweis = null) }
 
     fun navigationErledigt() = _uiState.update { it.copy(navigiereZuEditor = false) }
+
+    fun batchNavigationErledigt() = _uiState.update { it.copy(navigiereZuBatchReview = false) }
+
+    /**
+     * Automatische Weiche statt manueller Batch/Einzel-Auswahl: genau ein
+     * Foto läuft über den bestehenden, unveränderten Einzel-Flow;
+     * mehrere Fotos starten den Hintergrund-Batch (PerfumeBatchWorker) und
+     * navigieren zur Review-Übersicht statt direkt zum Editor.
+     */
+    fun galerieAuswahlVerarbeitet(uris: List<Uri>) {
+        if (uris.size <= 1) {
+            uris.firstOrNull()?.let(::fotoVerarbeiten)
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(ladeVorgang = true) }
+            // Bilder lokal kopieren, bevor der Worker startet — content://-URIs
+            // überleben keinen Prozess-Tod, ein Dateipfad im internen
+            // Speicher schon (gleiches Muster wie beim früheren Vergleichs-Tool).
+            val pfade = uris.mapNotNull { uri -> withContext(Dispatchers.IO) { imageStorage.speichereVonUri(uri) } }
+            if (pfade.isEmpty()) {
+                _uiState.update { it.copy(ladeVorgang = false) }
+                return@launch
+            }
+            val request = OneTimeWorkRequestBuilder<PerfumeBatchWorker>()
+                .setInputData(workDataOf(PerfumeBatchWorker.KEY_BILD_PFADE to pfade.toTypedArray()))
+                .build()
+            workManager.enqueueUniqueWork(PerfumeBatchWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+            _uiState.update { it.copy(ladeVorgang = false, navigiereZuBatchReview = true) }
+        }
+    }
 
     /** Direkt manuell, ganz ohne Foto. */
     fun manuellOhneFoto() {

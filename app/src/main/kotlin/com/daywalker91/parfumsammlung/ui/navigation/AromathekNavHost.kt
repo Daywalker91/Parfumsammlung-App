@@ -12,6 +12,7 @@ import com.daywalker91.parfumsammlung.di.AppContainer
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import com.daywalker91.parfumsammlung.ui.addflow.AddChoiceScreen
 import com.daywalker91.parfumsammlung.ui.addflow.ManuelleSucheScreen
+import com.daywalker91.parfumsammlung.ui.batch.BatchReviewScreen
 import com.daywalker91.parfumsammlung.ui.collection.CollectionScreen
 import com.daywalker91.parfumsammlung.ui.detail.DetailScreen
 import com.daywalker91.parfumsammlung.ui.devoptions.DevOptionsScreen
@@ -28,6 +29,7 @@ object AromathekRoutes {
     const val ADD_CHOICE = "addChoice"
     const val MANUELLE_SUCHE = "manuelleSuche"
     const val EDITOR_VON_VORSCHLAG = "editorVonVorschlag"
+    const val BATCH_REVIEW = "batchReview"
     const val SETTINGS = "settings"
     const val DEV_OPTIONS = "devOptions"
 
@@ -96,8 +98,10 @@ fun AromathekNavHost(
                 claudeService = container.claudeService,
                 apiKeyStore = container.claudeApiKeyStore,
                 bildDownloader = container.bildDownloader,
+                workManager = container.workManager,
                 onNavigateToEditor = { navController.navigate(AromathekRoutes.EDITOR_VON_VORSCHLAG) },
                 onNavigateToManuelleSuche = { navController.navigate(AromathekRoutes.MANUELLE_SUCHE) },
+                onNavigateToBatchReview = { navController.navigate(AromathekRoutes.BATCH_REVIEW) },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -127,6 +131,17 @@ fun AromathekNavHost(
                 vorschlag = payload?.vorschlag,
                 initialEan = payload?.ean,
                 onSaved = { navController.popBackStack(AromathekRoutes.COLLECTION, inclusive = false) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(AromathekRoutes.BATCH_REVIEW) {
+            BatchReviewScreen(
+                workManager = container.workManager,
+                repository = container.perfumeRepository,
+                imageStorage = container.imageStorage,
+                batchErgebnisStore = container.batchErgebnisStore,
+                onFertig = { navController.popBackStack(AromathekRoutes.COLLECTION, inclusive = false) },
+                onNavigateToEditor = { navController.navigate(AromathekRoutes.EDITOR_VON_VORSCHLAG) },
                 onBack = { navController.popBackStack() },
             )
         }
