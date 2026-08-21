@@ -1,5 +1,9 @@
 package com.daywalker91.parfumsammlung.ui.settings
 
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,11 +51,15 @@ import com.daywalker91.parfumsammlung.BuildConfig
 import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
+import com.daywalker91.parfumsammlung.data.SpendenLinkStore
+import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private const val CLAUDE_CONSOLE_URL = "https://console.anthropic.com/settings/keys"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,11 +67,17 @@ fun SettingsScreen(
     apiKeyStore: ClaudeApiKeyStore,
     backupManager: BackupManager,
     sortPreferenceStore: SortPreferenceStore,
+    usageCounterStore: UsageCounterStore,
+    spendenLinkStore: SpendenLinkStore,
     onBack: () -> Unit,
     onDevOptionsClick: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = viewModel(
-        factory = viewModelFactory { initializer { SettingsViewModel(apiKeyStore, backupManager, sortPreferenceStore) } },
+        factory = viewModelFactory {
+            initializer {
+                SettingsViewModel(apiKeyStore, backupManager, sortPreferenceStore, usageCounterStore, spendenLinkStore)
+            }
+        },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -113,6 +127,26 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            // Komfort statt Automatisierung: eine echte Console-Auto-Provisionierung
+            // ist nicht möglich (Anthropic sperrt OAuth-Flows serverseitig auf Claude
+            // Code/Claude.ai, siehe Plan) — hier nur Browser-Shortcut + Zwischenablage.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CLAUDE_CONSOLE_URL)))
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.claude_console_oeffnen)) }
+                OutlinedButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        val text = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+                        if (!text.isNullOrBlank()) viewModel.apiKeyGeaendert(text.trim())
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.aus_zwischenablage_einfuegen)) }
+            }
+
             Button(onClick = viewModel::speichern, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.speichern))
             }
@@ -125,6 +159,57 @@ fun SettingsScreen(
                 text = stringResource(R.string.datenschutz_hinweis_text),
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(stringResource(R.string.verbrauch_titel), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(
+                    R.string.verbrauch_diesen_monat,
+                    formatToken(uiState.verbrauch.tokenDiesenMonat),
+                    uiState.verbrauch.anfragenDiesenMonat,
+                    formatEuro(uiState.verbrauch.kostenDiesenMonatEuro),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                stringResource(
+                    R.string.verbrauch_seit_zahlung,
+                    formatToken(uiState.verbrauch.tokenSeitZahlung),
+                    uiState.verbrauch.anfragenSeitZahlung,
+                    formatEuro(uiState.verbrauch.kostenSeitZahlungEuro),
+                ) + if (uiState.verbrauch.letzteZahlungMillis > 0) {
+                    stringResource(
+                        R.string.verbrauch_seit_datum,
+                        SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).format(Date(uiState.verbrauch.letzteZahlungMillis)),
+                    )
+                } else {
+                    ""
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            OutlinedButton(onClick = viewModel::verbrauchBeglichen, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.verbrauch_beglichen))
+            }
+            Text(stringResource(R.string.verbrauch_schaetzung_hinweis), style = MaterialTheme.typography.bodySmall)
+
+            // Kein Backend, keine automatische Zahlungsbestätigung möglich — rein
+            // manueller/Ehrlichkeits-Ablauf: Spenden-Button öffnet den Link, der
+            // "Verbrauch beglichen"-Button oben wird danach von Hand bestätigt.
+            OutlinedTextField(
+                value = uiState.spendenLink,
+                onValueChange = viewModel::spendenLinkGeaendert,
+                label = { Text(stringResource(R.string.spenden_link_feld)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedButton(
+                onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uiState.spendenLink)))
+                },
+                enabled = uiState.spendenLink.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.spenden_button)) }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -195,6 +280,10 @@ fun SettingsScreen(
         }
     }
 }
+
+private fun formatToken(token: Long): String = String.format(Locale.GERMANY, "%,d", token)
+
+private fun formatEuro(euro: Double): String = String.format(Locale.GERMANY, "%.2f €", euro)
 
 /** Nicht-@Composable, da innerhalb eines LaunchedEffect (Coroutine) aufgerufen —
  * dort ist stringResource() nicht erlaubt, context.getString() aber schon. */

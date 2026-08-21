@@ -76,6 +76,20 @@
     <string name="einstellungen">Einstellungen</string>
     <string name="claude_api_key">Claude-API-Key</string>
     <string name="claude_key_erklaerung">Für die Foto-Erkennung wird ein eigener Claude-API-Key benötigt (console.anthropic.com). Der Key wird ausschließlich verschlüsselt auf diesem Gerät gespeichert und nirgendwo sonst hinterlegt.</string>
+    <string name="claude_console_oeffnen">Anthropic Console öffnen</string>
+    <string name="aus_zwischenablage_einfuegen">Aus Zwischenablage einfügen</string>
+
+    <!-- Verbrauchszähler (zwei parallele Sets: Kalendermonat automatisch, seit Zahlung manuell) -->
+    <string name="verbrauch_titel">Verbrauch (Claude-API)</string>
+    <string name="verbrauch_diesen_monat">Diesen Monat: %1$s Token, %2$d Anfragen, ≈ %3$s</string>
+    <string name="verbrauch_seit_zahlung">Seit letzter Zahlung: %1$s Token, %2$d Anfragen, ≈ %3$s</string>
+    <string name="verbrauch_seit_datum"> (seit %1$s)</string>
+    <string name="verbrauch_beglichen">Verbrauch beglichen</string>
+    <string name="verbrauch_schaetzung_hinweis">Geschätzt anhand der veröffentlichten Claude-Haiku-4.5-Preise — kein Live-Kontostand (dafür bräuchte es Admin-API-Zugriff, den ein persönlicher API-Key nicht hat).</string>
+
+    <!-- Spenden-Link (PayPal o. ä.) -->
+    <string name="spenden_link_feld">Spenden-Link (z. B. PayPal.me)</string>
+    <string name="spenden_button">Spenden</string>
     <string name="gespeichert">Gespeichert.</string>
 
     <string name="hinweis_kein_api_key_titel">Kein API-Key hinterlegt</string>

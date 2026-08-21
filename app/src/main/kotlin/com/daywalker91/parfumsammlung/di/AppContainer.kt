@@ -7,6 +7,7 @@ import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
+import com.daywalker91.parfumsammlung.data.SpendenLinkStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
@@ -49,4 +50,6 @@ class AppContainer(private val context: Context) {
     val claudeService: ClaudeService by lazy { ClaudeService(usageCounterStore) }
 
     val bildDownloader: BildDownloader by lazy { BildDownloader() }
+
+    val spendenLinkStore: SpendenLinkStore by lazy { SpendenLinkStore(context) }
 }

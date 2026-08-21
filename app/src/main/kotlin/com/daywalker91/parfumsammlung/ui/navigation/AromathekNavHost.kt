@@ -135,6 +135,8 @@ fun AromathekNavHost(
                 apiKeyStore = container.claudeApiKeyStore,
                 backupManager = container.backupManager,
                 sortPreferenceStore = container.sortPreferenceStore,
+                usageCounterStore = container.usageCounterStore,
+                spendenLinkStore = container.spendenLinkStore,
                 onBack = { navController.popBackStack() },
                 onDevOptionsClick = { navController.navigate(AromathekRoutes.DEV_OPTIONS) },
             )
