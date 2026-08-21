@@ -63,15 +63,16 @@ import androidx.lifecycle.viewmodel.initializer
 import coil3.compose.AsyncImage
 import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.AktivesBild
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.NotenEingabe
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
 import com.daywalker91.parfumsammlung.data.Saison
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,8 +80,9 @@ fun PerfumeEditorScreen(
     perfumeId: Long?,
     repository: PerfumeRepository,
     imageStorage: ImageStorage,
-    geminiService: GeminiService,
-    apiKeyStore: GeminiApiKeyStore,
+    claudeService: ClaudeService,
+    apiKeyStore: ClaudeApiKeyStore,
+    bildDownloader: BildDownloader,
     onSaved: () -> Unit,
     onBack: () -> Unit,
     initialBildPfadEigen: String? = null,
@@ -92,7 +94,7 @@ fun PerfumeEditorScreen(
         factory = viewModelFactory {
             initializer {
                 PerfumeEditorViewModel(
-                    perfumeId, repository, imageStorage, geminiService, apiKeyStore,
+                    perfumeId, repository, imageStorage, claudeService, apiKeyStore, bildDownloader,
                     initialBildPfadEigen, initialBildPfadStock, vorschlag, initialEan,
                 )
             }
@@ -176,7 +178,7 @@ fun PerfumeEditorScreen(
                 onBildDrehen = viewModel::bildDrehen,
             )
 
-            // Gemini-Antworten sind nicht deterministisch — ein zweiter
+            // Claude-Antworten sind nicht deterministisch — ein zweiter
             // Versuch mit demselben Foto kann andere/vollständigere Daten
             // liefern. Braucht dasselbe eigene Foto wie die ursprüngliche
             // Erkennung, deshalb nur sichtbar wenn eins vorhanden ist.

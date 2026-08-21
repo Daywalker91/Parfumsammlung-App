@@ -4,10 +4,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.ErkennungErgebnis
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -39,8 +40,9 @@ data class AddChoiceUiState(
 
 class AddChoiceViewModel(
     private val imageStorage: ImageStorage,
-    private val geminiService: GeminiService,
-    private val apiKeyStore: GeminiApiKeyStore,
+    private val claudeService: ClaudeService,
+    private val apiKeyStore: ClaudeApiKeyStore,
+    private val bildDownloader: BildDownloader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddChoiceUiState())
@@ -52,14 +54,14 @@ class AddChoiceViewModel(
 
     // Einmaliger Diagnose-Hinweis zum Stock-Bild (kein blockierender Dialog wie
     // `hinweis`, da die Haupterkennung ja trotzdem erfolgreich war) — hilft zu
-    // unterscheiden, ob Gemini schlicht keine Bild-URL geliefert hat oder ob der
+    // unterscheiden, ob Claude schlicht keine Bild-URL geliefert hat oder ob der
     // Download einer gelieferten URL fehlgeschlagen ist (z. B. Hotlink-Schutz).
     private val _stockBildHinweis = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     val stockBildHinweis: SharedFlow<Int> = _stockBildHinweis.asSharedFlow()
 
     fun eanErkannt(ean: String) = _uiState.update { it.copy(ean = ean) }
 
-    /** Bricht einen laufenden Foto-Erkennungsvorgang ab (kein Timeout mehr, siehe GeminiService). */
+    /** Bricht einen laufenden Foto-Erkennungsvorgang ab (kein Timeout mehr, siehe ClaudeService). */
     fun abbrechen() {
         erkennungsJob?.cancel()
         _uiState.update { it.copy(ladeVorgang = false) }
@@ -97,11 +99,11 @@ class AddChoiceViewModel(
                 return@launch
             }
 
-            when (val ergebnis = geminiService.erkennePerfum(apiKey, bildBytes, _uiState.value.ean)) {
-                is GeminiErgebnis.Erfolg -> {
+            when (val ergebnis = claudeService.erkennePerfum(apiKey, bildBytes, _uiState.value.ean)) {
+                is ErkennungErgebnis.Erfolg -> {
                     val stockUrl = ergebnis.vorschlag.stockBildUrl
                     val bildPfadStock = stockUrl?.let { url ->
-                        geminiService.ladeBild(url)?.let { bytes ->
+                        bildDownloader.laden(url)?.let { bytes ->
                             withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) }
                         }
                     }
@@ -115,17 +117,17 @@ class AddChoiceViewModel(
                     _uiState.update { it.copy(ladeVorgang = false, navigiereZuEditor = true) }
                 }
 
-                GeminiErgebnis.NichtGenugDaten -> {
+                ErkennungErgebnis.NichtGenugDaten -> {
                     PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.NichtGenugDaten) }
                 }
 
-                GeminiErgebnis.Offline -> {
+                ErkennungErgebnis.Offline -> {
                     PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.Offline) }
                 }
 
-                is GeminiErgebnis.Fehler -> {
+                is ErkennungErgebnis.Fehler -> {
                     PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.Fehler(ergebnis.nachricht)) }
                 }

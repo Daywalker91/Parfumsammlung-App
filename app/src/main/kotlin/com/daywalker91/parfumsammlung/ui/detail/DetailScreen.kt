@@ -59,23 +59,23 @@ import com.daywalker91.parfumsammlung.data.AktivesBild
 import com.daywalker91.parfumsammlung.data.NoteWithPosition
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.Position
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.ShopAngebot
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.model.ShopAngebot
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     perfumeId: Long,
     repository: PerfumeRepository,
-    geminiService: GeminiService,
-    apiKeyStore: GeminiApiKeyStore,
+    claudeService: ClaudeService,
+    apiKeyStore: ClaudeApiKeyStore,
     onEditClick: () -> Unit,
     onBack: () -> Unit,
     onDeleted: () -> Unit,
 ) {
     val viewModel: DetailViewModel = viewModel(
-        factory = viewModelFactory { initializer { DetailViewModel(perfumeId, repository, geminiService, apiKeyStore) } },
+        factory = viewModelFactory { initializer { DetailViewModel(perfumeId, repository, claudeService, apiKeyStore) } },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var zeigeLoeschDialog by remember { mutableStateOf(false) }

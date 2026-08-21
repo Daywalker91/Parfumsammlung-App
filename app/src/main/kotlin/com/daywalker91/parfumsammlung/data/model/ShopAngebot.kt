@@ -1,4 +1,4 @@
-package com.daywalker91.parfumsammlung.data.gemini
+package com.daywalker91.parfumsammlung.data.model
 
 /**
  * Ein per Websuche gefundenes Shop-Angebot (Phase 8c) — bewusst eine reine

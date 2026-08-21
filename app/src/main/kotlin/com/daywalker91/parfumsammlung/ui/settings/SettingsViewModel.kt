@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -35,7 +35,7 @@ data class SettingsUiState(
 )
 
 class SettingsViewModel(
-    private val apiKeyStore: GeminiApiKeyStore,
+    private val apiKeyStore: ClaudeApiKeyStore,
     private val backupManager: BackupManager,
     private val sortPreferenceStore: SortPreferenceStore,
 ) : ViewModel() {

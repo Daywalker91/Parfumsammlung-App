@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Für Gemini-API-Calls (Bilderkennung) und den Self-Update-Mechanismus (GitHub Releases API) -->
+    <!-- Für Claude-API-Calls (Bilderkennung) und den Self-Update-Mechanismus (GitHub Releases API) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Für den Barcode-Scan (ML Kit Code Scanner) und die Foto-Aufnahme -->
     <uses-permission android:name="android.permission.CAMERA" />

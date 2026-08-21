@@ -40,23 +40,27 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddChoiceScreen(
     imageStorage: ImageStorage,
-    geminiService: GeminiService,
-    apiKeyStore: GeminiApiKeyStore,
+    claudeService: ClaudeService,
+    apiKeyStore: ClaudeApiKeyStore,
+    bildDownloader: BildDownloader,
     onNavigateToEditor: () -> Unit,
     onNavigateToManuelleSuche: () -> Unit,
     onBack: () -> Unit,
 ) {
     val viewModel: AddChoiceViewModel = viewModel(
-        factory = viewModelFactory { initializer { AddChoiceViewModel(imageStorage, geminiService, apiKeyStore) } },
+        factory = viewModelFactory {
+            initializer { AddChoiceViewModel(imageStorage, claudeService, apiKeyStore, bildDownloader) }
+        },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -164,7 +168,7 @@ fun AddChoiceScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     CircularProgressIndicator()
-                    // Kein Timeout mehr auf Gemini-Anfragen (siehe GeminiService) — dafür
+                    // Kein Timeout mehr auf Claude-Anfragen (siehe ClaudeService) — dafür
                     // muss der Nutzer selbst abbrechen können, statt endlos zu warten.
                     TextButton(onClick = viewModel::abbrechen) {
                         Text(stringResource(R.string.abbrechen))

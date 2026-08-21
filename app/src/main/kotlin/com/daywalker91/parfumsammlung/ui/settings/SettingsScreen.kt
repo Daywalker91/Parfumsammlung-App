@@ -48,7 +48,7 @@ import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -56,7 +56,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    apiKeyStore: GeminiApiKeyStore,
+    apiKeyStore: ClaudeApiKeyStore,
     backupManager: BackupManager,
     sortPreferenceStore: SortPreferenceStore,
     onBack: () -> Unit,
@@ -101,12 +101,12 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.gemini_key_erklaerung), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.claude_key_erklaerung), style = MaterialTheme.typography.bodyMedium)
 
             OutlinedTextField(
                 value = uiState.apiKey,
                 onValueChange = viewModel::apiKeyGeaendert,
-                label = { Text(stringResource(R.string.gemini_api_key)) },
+                label = { Text(stringResource(R.string.claude_api_key)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),

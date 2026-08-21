@@ -1,9 +1,9 @@
 package com.daywalker91.parfumsammlung.di
 
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
+import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
 
 /**
- * Trägt einen Gemini-Erkennungsvorschlag (+ die dafür bereits lokal
+ * Trägt einen Claude-Erkennungsvorschlag (+ die dafür bereits lokal
  * gespeicherten Bilder) einmalig vom Foto-Hinzufügen-Flow zum Editor-Screen.
  * Compose Navigation kann nur einfache Typen als Routen-Argumente
  * transportieren — für dieses kurzlebige, komplexere Objekt reicht ein

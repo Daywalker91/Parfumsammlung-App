@@ -35,22 +35,26 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeKandidat
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.model.PerfumeKandidat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManuelleSucheScreen(
-    geminiService: GeminiService,
-    apiKeyStore: GeminiApiKeyStore,
+    claudeService: ClaudeService,
+    apiKeyStore: ClaudeApiKeyStore,
     imageStorage: ImageStorage,
+    bildDownloader: BildDownloader,
     onNavigateToEditor: () -> Unit,
     onBack: () -> Unit,
 ) {
     val viewModel: ManuelleSucheViewModel = viewModel(
-        factory = viewModelFactory { initializer { ManuelleSucheViewModel(geminiService, apiKeyStore, imageStorage) } },
+        factory = viewModelFactory {
+            initializer { ManuelleSucheViewModel(claudeService, apiKeyStore, imageStorage, bildDownloader) }
+        },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 

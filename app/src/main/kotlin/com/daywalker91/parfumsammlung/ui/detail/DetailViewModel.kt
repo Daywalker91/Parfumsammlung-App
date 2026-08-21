@@ -6,10 +6,10 @@ import com.daywalker91.parfumsammlung.data.AktivesBild
 import com.daywalker91.parfumsammlung.data.NoteWithPosition
 import com.daywalker91.parfumsammlung.data.Perfume
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.GeminiShopSucheErgebnis
-import com.daywalker91.parfumsammlung.data.gemini.ShopAngebot
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.ShopSucheErgebnis
+import com.daywalker91.parfumsammlung.data.model.ShopAngebot
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -49,8 +49,8 @@ private data class ShopZustand(
 class DetailViewModel(
     perfumeId: Long,
     private val repository: PerfumeRepository,
-    private val geminiService: GeminiService,
-    private val apiKeyStore: GeminiApiKeyStore,
+    private val claudeService: ClaudeService,
+    private val apiKeyStore: ClaudeApiKeyStore,
 ) : ViewModel() {
 
     private val _shopZustand = MutableStateFlow(ShopZustand())
@@ -91,7 +91,7 @@ class DetailViewModel(
     /**
      * Bewusst nur auf expliziten Nutzer-Tap (Erstabruf-Button bzw.
      * Refresh-Icon), kein automatischer Abruf beim Öffnen des Preis-Tabs —
-     * sonst würde jedes bloße Ansehen der Detailseite eine Gemini-Anfrage
+     * sonst würde jedes bloße Ansehen der Detailseite eine Claude-Anfrage
      * auslösen (siehe Konzeptdokument: "Momentaufnahme, kein automatisches
      * Nachfragen").
      */
@@ -105,21 +105,21 @@ class DetailViewModel(
                 _shopSucheHinweis.tryEmit(ShopSucheHinweis.KeinApiKey)
                 return@launch
             }
-            when (val ergebnis = geminiService.sucheShops(apiKey, perfume.name, perfume.marke)) {
-                is GeminiShopSucheErgebnis.Erfolg ->
+            when (val ergebnis = claudeService.sucheShops(apiKey, perfume.name, perfume.marke)) {
+                is ShopSucheErgebnis.Erfolg ->
                     _shopZustand.update { ShopZustand(angebote = ergebnis.angebote, laeuft = false, abgerufen = true) }
 
-                GeminiShopSucheErgebnis.NichtGefunden -> {
+                ShopSucheErgebnis.NichtGefunden -> {
                     _shopZustand.update { ShopZustand(angebote = emptyList(), laeuft = false, abgerufen = true) }
                     _shopSucheHinweis.tryEmit(ShopSucheHinweis.NichtGefunden)
                 }
 
-                GeminiShopSucheErgebnis.Offline -> {
+                ShopSucheErgebnis.Offline -> {
                     _shopZustand.update { it.copy(laeuft = false) }
                     _shopSucheHinweis.tryEmit(ShopSucheHinweis.Offline)
                 }
 
-                is GeminiShopSucheErgebnis.Fehler -> {
+                is ShopSucheErgebnis.Fehler -> {
                     _shopZustand.update { it.copy(laeuft = false) }
                     _shopSucheHinweis.tryEmit(ShopSucheHinweis.Fehler(ergebnis.nachricht))
                 }
