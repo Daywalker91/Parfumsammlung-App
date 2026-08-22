@@ -49,12 +49,15 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.initializer
 import com.daywalker91.parfumsammlung.BuildConfig
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
 import com.daywalker91.parfumsammlung.data.SpendenLinkStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.GatewayStatus
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -69,13 +72,23 @@ fun SettingsScreen(
     sortPreferenceStore: SortPreferenceStore,
     usageCounterStore: UsageCounterStore,
     spendenLinkStore: SpendenLinkStore,
+    gatewayAccessCodeStore: GatewayAccessCodeStore,
+    claudeService: ClaudeService,
     onBack: () -> Unit,
     onDevOptionsClick: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                SettingsViewModel(apiKeyStore, backupManager, sortPreferenceStore, usageCounterStore, spendenLinkStore)
+                SettingsViewModel(
+                    apiKeyStore,
+                    backupManager,
+                    sortPreferenceStore,
+                    usageCounterStore,
+                    spendenLinkStore,
+                    gatewayAccessCodeStore,
+                    claudeService,
+                )
             }
         },
     )
@@ -145,6 +158,29 @@ fun SettingsScreen(
                     },
                     modifier = Modifier.weight(1f),
                 ) { Text(stringResource(R.string.aus_zwischenablage_einfuegen)) }
+            }
+
+            // Alternative zum eigenen Key: individueller Lizenzschlüssel (Lizenz-Gateway-Plan) —
+            // greift nur, wenn oben kein eigener Key hinterlegt ist (ClaudeService entscheidet).
+            OutlinedTextField(
+                value = uiState.lizenzschluessel,
+                onValueChange = viewModel::lizenzschluesselGeaendert,
+                label = { Text(stringResource(R.string.lizenzschluessel_feld)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(stringResource(R.string.lizenzschluessel_erklaerung), style = MaterialTheme.typography.bodySmall)
+
+            when (val status = uiState.gatewayStatus) {
+                is GatewayStatus.Verfuegbar -> Text(
+                    stringResource(R.string.gateway_status_verfuegbar, status.verbleibendHeute),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                GatewayStatus.Gesperrt -> Text(
+                    stringResource(R.string.gateway_status_gesperrt),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                GatewayStatus.KeinGateway -> Unit
             }
 
             Button(onClick = viewModel::speichern, modifier = Modifier.fillMaxWidth()) {

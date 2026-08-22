@@ -73,7 +73,7 @@ class ManuelleSucheViewModel(
             _uiState.update { it.copy(ladeVorgang = true, kandidaten = emptyList(), bestaetigungKandidat = null) }
 
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.KeinApiKey) }
                 return@launch
             }
@@ -108,7 +108,7 @@ class ManuelleSucheViewModel(
             _uiState.update { it.copy(ladeVorgang = true, bestaetigungKandidat = null, kandidaten = emptyList()) }
 
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.KeinApiKey) }
                 return@launch
             }

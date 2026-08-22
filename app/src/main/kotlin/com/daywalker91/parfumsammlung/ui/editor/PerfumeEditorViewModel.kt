@@ -214,7 +214,7 @@ class PerfumeEditorViewModel(
         }
         viewModelScope.launch {
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.KeinApiKey)
                 return@launch
             }

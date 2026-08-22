@@ -5,6 +5,7 @@ import androidx.work.WorkManager
 import com.daywalker91.parfumsammlung.data.AppDatabase
 import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.FirstLaunchPrefs
+import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
@@ -49,7 +50,11 @@ class AppContainer(private val context: Context) {
 
     val claudeApiKeyStore: ClaudeApiKeyStore by lazy { ClaudeApiKeyStore(context) }
 
-    val claudeService: ClaudeService by lazy { ClaudeService(usageCounterStore) }
+    // Lizenz-Gateway (siehe Plan) — individueller Lizenzschlüssel statt eines
+    // einkompilierten Codes, greift nur wenn claudeApiKeyStore leer ist.
+    val gatewayAccessCodeStore: GatewayAccessCodeStore by lazy { GatewayAccessCodeStore(context) }
+
+    val claudeService: ClaudeService by lazy { ClaudeService(usageCounterStore, gatewayAccessCodeStore) }
 
     val bildDownloader: BildDownloader by lazy { BildDownloader() }
 

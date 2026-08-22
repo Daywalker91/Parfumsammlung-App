@@ -125,7 +125,7 @@ class AddChoiceViewModel(
             val bildPfadEigen = withContext(Dispatchers.IO) { imageStorage.speichereVonUri(uri) }
 
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                 _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.KeinApiKey) }
                 return@launch

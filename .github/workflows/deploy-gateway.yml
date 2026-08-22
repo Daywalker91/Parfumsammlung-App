@@ -1,0 +1,50 @@
+name: Deploy Gateway
+
+# Siehe gateway/README.md für die einmalige Einrichtung (Secrets, RBAC, self-hosted Runner).
+on:
+  push:
+    branches: [Stable]
+    paths:
+      - "gateway/**"
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        id: image
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/parfumsammlung-gateway:${{ github.sha }}"
+          docker build -t "$IMAGE" gateway/
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build-and-push
+    # Läuft nur, wenn ein self-hosted Runner im eigenen Cluster/Netz existiert
+    # (siehe README) — ohne das bricht dieser Job einfach ab, das Image steht
+    # trotzdem in der GHCR und kann manuell ausgerollt werden:
+    #   kubectl set image deployment/gateway gateway=<image-aus-build-and-push>
+    #   kubectl rollout status deployment/gateway
+    runs-on: [self-hosted, k3s-home]
+    continue-on-error: true
+    steps:
+      - name: Rollout
+        run: |
+          kubectl set image deployment/gateway gateway=${{ needs.build-and-push.outputs.image }}
+          kubectl rollout status deployment/gateway --timeout=120s

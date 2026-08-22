@@ -1,6 +1,8 @@
 package com.daywalker91.parfumsammlung.data.claude
 
 import android.util.Base64
+import com.daywalker91.parfumsammlung.BuildConfig
+import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.model.PerfumeKandidat
 import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
@@ -45,6 +47,14 @@ sealed interface ShopSucheErgebnis {
     data class Fehler(val nachricht: String) : ShopSucheErgebnis
 }
 
+/** Zustand des geteilten Gateway-Zugangs (Lizenzschlüssel) — reine Anzeige in den Settings, kein Cache. */
+sealed interface GatewayStatus {
+    data class Verfuegbar(val verbleibendHeute: Int) : GatewayStatus
+    data object Gesperrt : GatewayStatus
+    /** Kein Gateway in diesem Build (Dev-Build) ODER kein Lizenzschlüssel hinterlegt. */
+    data object KeinGateway : GatewayStatus
+}
+
 /**
  * Direkter REST-Client für die Anthropic-Messages-API — bewusst kein
  * offizielles SDK (gleiche Begründung wie zuvor bei GeminiService: keine
@@ -59,6 +69,15 @@ sealed interface ShopSucheErgebnis {
  */
 class ClaudeService(
     private val usageCounterStore: UsageCounterStore,
+    // Lizenz-Gateway (siehe Plan "Lizenz-Gateway für geteilten Claude-API-
+    // Zugang") — greift nur, wenn kein eigener Key vorliegt. gatewayBaseUrl
+    // ist reine Server-Adresse, kein Geheimnis, darf fest einkompiliert sein
+    // (Default leer in lokalen Dev-Builds ohne -P-Property, Verhalten dort
+    // unverändert: nur eigener Key funktioniert). Der Lizenzschlüssel selbst
+    // ist NICHT einkompiliert, sondern kommt ausschließlich vom Nutzer
+    // eingetragen aus gatewayAccessCodeStore.
+    private val gatewayAccessCodeStore: GatewayAccessCodeStore,
+    private val gatewayBaseUrl: String = BuildConfig.GATEWAY_BASE_URL,
     // Bewusst KEIN Timeout (siehe GeminiService für die ausführliche
     // Begründung) — ein Grounded-Request kann unterschiedlich lange dauern,
     // der Nutzer bricht im Einzel-Flow stattdessen manuell ab. Nur der
@@ -72,7 +91,36 @@ class ClaudeService(
         .build(),
 ) {
 
-    suspend fun erkennePerfum(apiKey: String, bildBytes: ByteArray, ean: String?): ErkennungErgebnis =
+    /** Ob überhaupt ein Weg existiert, eine Anfrage zu senden — eigener Key ODER Gateway-Zugang. */
+    fun kannAnfragenSenden(apiKey: String?): Boolean =
+        apiKey != null || (gatewayBaseUrl.isNotBlank() && gatewayAccessCodeStore.getCode() != null)
+
+    /** Status des geteilten Zugangs für die Settings-Anzeige — kein Anthropic-Aufruf, kein Kostenrisiko. */
+    suspend fun gatewayStatus(): GatewayStatus {
+        if (gatewayBaseUrl.isBlank()) return GatewayStatus.KeinGateway
+        val code = gatewayAccessCodeStore.getCode() ?: return GatewayStatus.KeinGateway
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("${gatewayBaseUrl.trimEnd('/')}/v1/status")
+                    .header("X-Access-Code", code)
+                    .build()
+                ausfuehrenAbbrechbar(request).use { response ->
+                    if (!response.isSuccessful) return@withContext GatewayStatus.Gesperrt
+                    val json = JSONObject(response.body.string())
+                    if (json.optBoolean("gueltig", false)) {
+                        GatewayStatus.Verfuegbar(json.optInt("verbleibendHeute", 0))
+                    } else {
+                        GatewayStatus.Gesperrt
+                    }
+                }
+            } catch (e: IOException) {
+                GatewayStatus.KeinGateway
+            }
+        }
+    }
+
+    suspend fun erkennePerfum(apiKey: String?, bildBytes: ByteArray, ean: String?): ErkennungErgebnis =
         claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueBildRequestBody(bildBytes, ean),
@@ -83,7 +131,7 @@ class ClaudeService(
         )
 
     /** Kandidatensuche (Phase 8b, Schritt 1) — nur der Name ist bekannt, kein Foto. */
-    suspend fun sucheKandidaten(apiKey: String, name: String): KandidatenErgebnis =
+    suspend fun sucheKandidaten(apiKey: String?, name: String): KandidatenErgebnis =
         claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueTextRequestBody(promptKandidaten(name)),
@@ -94,7 +142,7 @@ class ClaudeService(
         )
 
     /** Volle Datenübernahme (Phase 8b, Schritt 2) — Marke+Name stehen nach der Kandidatenwahl schon fest. */
-    suspend fun erkennePerfumNachNameUndMarke(apiKey: String, name: String, marke: String, ean: String?): ErkennungErgebnis =
+    suspend fun erkennePerfumNachNameUndMarke(apiKey: String?, name: String, marke: String, ean: String?): ErkennungErgebnis =
         claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueTextRequestBody(promptNamensSuche(name, marke, ean)),
@@ -105,7 +153,7 @@ class ClaudeService(
         )
 
     /** Shop-Suche (Phase 8c) — reine Momentaufnahme zum Abrufzeitpunkt, wird nicht persistiert. */
-    suspend fun sucheShops(apiKey: String, name: String, marke: String): ShopSucheErgebnis =
+    suspend fun sucheShops(apiKey: String?, name: String, marke: String): ShopSucheErgebnis =
         claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueTextRequestBody(promptShopSuche(name, marke)),
@@ -139,20 +187,32 @@ class ClaudeService(
      * jeweilige parse-Funktion übergeben.
      */
     private suspend fun <T> claudeAnfrage(
-        apiKey: String,
+        apiKey: String?,
         requestJson: JSONObject,
         offline: T,
         fehler: (String) -> T,
         keineAntwort: T,
         parse: (String) -> T,
     ): T = withContext(Dispatchers.IO) {
+        // Routing: eigener Key -> direkt Anthropic (heutiges Verhalten). Kein
+        // eigener Key -> Lizenzschlüssel aus dem Gateway-Store, falls
+        // vorhanden UND ein Gateway in diesem Build konfiguriert ist. Fehlen
+        // beide, hätte kannAnfragenSenden() das schon vorher verhindern
+        // sollen — dieser Zweig ist nur ein Sicherheitsnetz.
+        val zugangscode = if (apiKey == null) gatewayAccessCodeStore.getCode() else null
+        if (apiKey == null && (zugangscode == null || gatewayBaseUrl.isBlank())) {
+            return@withContext fehler("Kein eigener Claude-API-Key und kein Lizenzschlüssel hinterlegt.")
+        }
         try {
-            val request = Request.Builder()
-                .url(ENDPOINT)
-                .header("x-api-key", apiKey)
+            val requestBuilder = Request.Builder()
                 .header("anthropic-version", ANTHROPIC_VERSION)
                 .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
+            if (apiKey != null) {
+                requestBuilder.url(ENDPOINT).header("x-api-key", apiKey)
+            } else {
+                requestBuilder.url("${gatewayBaseUrl.trimEnd('/')}/v1/messages").header("X-Access-Code", zugangscode!!)
+            }
+            val request = requestBuilder.build()
 
             ausfuehrenAbbrechbar(request).use { response ->
                 val rohantwort = response.body.string()
@@ -246,8 +306,13 @@ class ClaudeService(
 
     private fun entferneCiteTags(text: String): String = text.replace(CITE_TAG_REGEX, "")
 
+    /** Deckt sowohl Anthropics eigenes Fehlerformat ({"error":{"message":...}})
+     * als auch das schlankere Gateway-Format ({"fehler":"..."}) ab. */
     private fun fehlermeldungAus(rohantwort: String): String = try {
-        JSONObject(rohantwort).optJSONObject("error")?.optString("message") ?: rohantwort.take(200)
+        val json = JSONObject(rohantwort)
+        json.optJSONObject("error")?.optString("message")
+            ?: json.optStringOrNull("fehler")
+            ?: rohantwort.take(200)
     } catch (e: Exception) {
         rohantwort.take(200)
     }

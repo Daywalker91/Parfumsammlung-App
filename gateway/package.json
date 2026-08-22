@@ -1,0 +1,16 @@
+{
+  "name": "parfumsammlung-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lizenz-Gateway für geteilten Claude-API-Zugang (siehe Plan im Haupt-Repo)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "basic-auth": "^2.0.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "mysql2": "^3.11.5"
+  }
+}

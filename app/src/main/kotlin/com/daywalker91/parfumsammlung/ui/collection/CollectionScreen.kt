@@ -93,6 +93,9 @@ fun CollectionScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var ausgewaehlterTab by remember { mutableIntStateOf(0) }
     var zeigeDatenschutzHinweis by remember { mutableStateOf(!firstLaunchPrefs.datenschutzGesehen()) }
+    // Lizenz-Gateway-Onboarding (siehe Plan) — direkt nach dem Datenschutz-Hinweis, gleiches
+    // Einmalig-Muster, per "Später" überspringbar (App bleibt ohne KI-Funktion voll nutzbar).
+    var zeigeZugangsWahl by remember { mutableStateOf(!firstLaunchPrefs.zugangsWahlGesehen()) }
     // Such-/Filterbereich ist standardmäßig eingeklappt (Nutzer-Feedback: nahm
     // sonst dauerhaft Platz weg) — Ziehgriff darunter zum Auf-/Zuziehen.
     var filterOffen by remember { mutableStateOf(false) }
@@ -180,6 +183,32 @@ fun CollectionScreen(
                     firstLaunchPrefs.datenschutzAlsGesehenMarkieren()
                     zeigeDatenschutzHinweis = false
                 }) { Text(stringResource(R.string.verstanden)) }
+            },
+        )
+    } else if (zeigeZugangsWahl) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.zugangswahl_titel)) },
+            text = { Text(stringResource(R.string.zugangswahl_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    firstLaunchPrefs.zugangsWahlAlsGesehenMarkieren()
+                    zeigeZugangsWahl = false
+                    onSettingsClick()
+                }) { Text(stringResource(R.string.zugangswahl_api_key_button)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        firstLaunchPrefs.zugangsWahlAlsGesehenMarkieren()
+                        zeigeZugangsWahl = false
+                    }) { Text(stringResource(R.string.spaeter)) }
+                    TextButton(onClick = {
+                        firstLaunchPrefs.zugangsWahlAlsGesehenMarkieren()
+                        zeigeZugangsWahl = false
+                        onSettingsClick()
+                    }) { Text(stringResource(R.string.zugangswahl_lizenzschluessel_button)) }
+                }
             },
         )
     }

@@ -12,7 +12,16 @@ class FirstLaunchPrefs(context: Context) {
         prefs.edit().putBoolean(KEY_DATENSCHUTZ_GESEHEN, true).apply()
     }
 
+    /** Onboarding-Dialog "Eigener API-Key oder Lizenzschlüssel" (Lizenz-Gateway-Plan) — wird
+     * einmalig direkt nach dem Datenschutz-Hinweis gezeigt, per "Später" überspringbar. */
+    fun zugangsWahlGesehen(): Boolean = prefs.getBoolean(KEY_ZUGANGSWAHL_GESEHEN, false)
+
+    fun zugangsWahlAlsGesehenMarkieren() {
+        prefs.edit().putBoolean(KEY_ZUGANGSWAHL_GESEHEN, true).apply()
+    }
+
     private companion object {
         const val KEY_DATENSCHUTZ_GESEHEN = "datenschutz_gesehen"
+        const val KEY_ZUGANGSWAHL_GESEHEN = "zugangswahl_gesehen"
     }
 }

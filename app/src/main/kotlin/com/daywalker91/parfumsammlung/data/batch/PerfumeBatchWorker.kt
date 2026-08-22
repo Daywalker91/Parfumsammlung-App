@@ -45,7 +45,8 @@ class PerfumeBatchWorker(
     override suspend fun doWork(): Result {
         val bildPfade = inputData.getStringArray(KEY_BILD_PFADE)?.toList().orEmpty()
         if (bildPfade.isEmpty()) return Result.failure()
-        val apiKey = claudeApiKeyStore.getKey() ?: return Result.failure()
+        val apiKey = claudeApiKeyStore.getKey()
+        if (!claudeService.kannAnfragenSenden(apiKey)) return Result.failure()
 
         val ergebnisse = bildPfade.mapIndexed { index, pfad ->
             setForeground(erstelleForegroundInfo(index, bildPfade.size))
@@ -57,7 +58,7 @@ class PerfumeBatchWorker(
         return Result.success()
     }
 
-    private suspend fun verarbeiteEinzelnesBild(apiKey: String, pfad: String): BatchEintrag {
+    private suspend fun verarbeiteEinzelnesBild(apiKey: String?, pfad: String): BatchEintrag {
         val bytes = File(pfad).takeIf { it.exists() }?.readBytes()
             ?: return BatchEintrag(pfad, null, null, "Foto konnte nicht gelesen werden.")
 

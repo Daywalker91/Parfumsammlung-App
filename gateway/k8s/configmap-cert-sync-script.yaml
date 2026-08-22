@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-cert-sync-script
+data:
+  sync.sh: |
+    #!/bin/sh
+    set -eu
+
+    apk add --no-cache openssh-client >/dev/null
+
+    mkdir -p ~/.ssh
+    cp /ssh/id_ed25519 ~/.ssh/id_ed25519
+    chmod 600 ~/.ssh/id_ed25519
+    ssh-keyscan -H "$PFSENSE_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+    # Exakte Pfade der Zertifikatsdateien hängen von der pfSense-/ACME-Paket-
+    # Version ab (siehe Plan "ermitteln wir beim Einrichten") — hier als Env
+    # konfigurierbar statt fest im Skript.
+    sftp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST" <<SFTP
+    get $PFSENSE_CERT_PATH /tmp/tls.crt
+    get $PFSENSE_KEY_PATH /tmp/tls.key
+    SFTP
+
+    NEUER_HASH=$(cat /tmp/tls.crt /tmp/tls.key | sha256sum | cut -d' ' -f1)
+    ALTER_HASH=$(kubectl get secret gateway-tls -o jsonpath='{.metadata.annotations.cert-hash}' 2>/dev/null || echo "")
+
+    if [ "$NEUER_HASH" != "$ALTER_HASH" ]; then
+      kubectl create secret tls gateway-tls --cert=/tmp/tls.crt --key=/tmp/tls.key --dry-run=client -o yaml \
+        | kubectl label -f - --dry-run=client -o yaml --local app=gateway \
+        > /tmp/secret.yaml
+      kubectl apply -f /tmp/secret.yaml
+      kubectl annotate secret gateway-tls cert-hash="$NEUER_HASH" --overwrite
+      kubectl rollout restart deployment/gateway
+      echo "Zertifikat aktualisiert, Deployment neu gestartet."
+    else
+      echo "Zertifikat unveraendert, nichts zu tun."
+    fi

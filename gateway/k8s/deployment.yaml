@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        # TLS-Terminierung — nutzt das von pfSense erneuerte Zertifikat (siehe
+        # cronjob-cert-sync.yaml), keine eigene ACME-Logik.
+        - name: caddy
+          image: caddy:2.9-alpine
+          ports:
+            - containerPort: 443
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+            - name: tls
+              mountPath: /certs
+              readOnly: true
+
+        # Node/Express-Service — lauscht nur intern, Caddy ist die einzige Tür.
+        - name: gateway
+          image: ghcr.io/daywalker91/parfumsammlung-gateway:latest # wird von deploy-gateway.yml überschrieben
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DB_HOST
+              value: "mariadb.default.svc.cluster.local" # ggf. Namespace/Service-Namen anpassen
+            - name: DB_NAME
+              value: "parfumsammlung_gateway"
+            - name: DB_USER
+              valueFrom: { secretKeyRef: { name: gateway-db-credentials, key: user } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: gateway-db-credentials, key: password } }
+            - name: ADMIN_USER
+              valueFrom: { secretKeyRef: { name: gateway-admin-credentials, key: user } }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: gateway-admin-credentials, key: password } }
+            - name: GATEWAY_ENC_KEY
+              valueFrom: { secretKeyRef: { name: gateway-enc-key, key: key } }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        - name: caddyfile
+          configMap: { name: gateway-caddyfile }
+        - name: tls
+          secret: { secretName: gateway-tls }

@@ -100,7 +100,7 @@ class DetailViewModel(
         viewModelScope.launch {
             _shopZustand.update { it.copy(laeuft = true) }
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _shopZustand.update { it.copy(laeuft = false) }
                 _shopSucheHinweis.tryEmit(ShopSucheHinweis.KeinApiKey)
                 return@launch

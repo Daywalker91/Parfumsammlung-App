@@ -27,6 +27,12 @@ val signingKeyAlias = project.findProperty("signingKeyAlias") as String?
 val signingKeyPassword = project.findProperty("signingKeyPassword") as String?
 val hasReleaseSigning = signingStoreFile != null
 
+// Lizenz-Gateway (siehe Plan "Lizenz-Gateway für geteilten Claude-API-Zugang"):
+// reine Server-Adresse, kein Geheimnis, darf fest einkompiliert sein. Leer in
+// lokalen Dev-Builds ohne -P-Property — dort funktioniert wie bisher nur ein
+// eigener Claude-Key (ClaudeService.kannAnfragenSenden()).
+val gatewayBaseUrl = project.findProperty("gatewayBaseUrl") as String? ?: ""
+
 android {
     namespace = "com.daywalker91.parfumsammlung"
     compileSdk = 36
@@ -37,6 +43,8 @@ android {
         targetSdk = 36
         versionCode = ciVersionCode
         versionName = ciVersionName
+
+        buildConfigField("String", "GATEWAY_BASE_URL", "\"$gatewayBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

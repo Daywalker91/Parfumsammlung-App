@@ -80,6 +80,18 @@
     <string name="claude_console_oeffnen">Anthropic Console öffnen</string>
     <string name="aus_zwischenablage_einfuegen">Aus Zwischenablage einfügen</string>
 
+    <!-- Lizenz-Gateway: individueller Lizenzschlüssel statt eigenem API-Key -->
+    <string name="lizenzschluessel_feld">Lizenzschlüssel</string>
+    <string name="lizenzschluessel_erklaerung">Alternative zum eigenen API-Key: ein individueller Lizenzschlüssel, den du persönlich zugeteilt bekommen hast. Wird nur genutzt, wenn kein eigener API-Key hinterlegt ist.</string>
+    <string name="gateway_status_verfuegbar">Läuft über Lizenzschlüssel (noch %1$d Anfragen heute)</string>
+    <string name="gateway_status_gesperrt">Lizenzschlüssel ausgeschöpft oder gesperrt</string>
+
+    <!-- Onboarding-Dialog: Wahl zwischen eigenem API-Key und Lizenzschlüssel -->
+    <string name="zugangswahl_titel">Zugang zur Foto-Erkennung</string>
+    <string name="zugangswahl_text">Um Fotos automatisch erkennen zu lassen, brauchst du entweder einen eigenen Claude-API-Key oder einen Lizenzschlüssel, den du vom Betreiber dieser App zugeteilt bekommen hast. Beides kannst du auch später in den Einstellungen nachtragen.</string>
+    <string name="zugangswahl_api_key_button">API-Key eingeben</string>
+    <string name="zugangswahl_lizenzschluessel_button">Lizenzschlüssel eingeben</string>
+
     <!-- Verbrauchszähler (zwei parallele Sets: Kalendermonat automatisch, seit Zahlung manuell) -->
     <string name="verbrauch_titel">Verbrauch (Claude-API)</string>
     <string name="verbrauch_diesen_monat">Diesen Monat: %1$s Token, %2$d Anfragen, ≈ %3$s</string>
@@ -104,8 +116,8 @@
     <string name="uebernehmen">Übernehmen</string>
     <string name="gespeichert">Gespeichert.</string>
 
-    <string name="hinweis_kein_api_key_titel">Kein API-Key hinterlegt</string>
-    <string name="hinweis_kein_api_key_text">Foto-Erkennung braucht einen Claude-API-Key (Einstellungen → Claude-API-Key). Ohne Key bleibt nur die manuelle Eingabe — das Foto wird dabei trotzdem übernommen.</string>
+    <string name="hinweis_kein_api_key_titel">Kein Zugang hinterlegt</string>
+    <string name="hinweis_kein_api_key_text">Foto-Erkennung braucht entweder einen eigenen Claude-API-Key oder einen Lizenzschlüssel (Einstellungen). Ohne einen von beiden bleibt nur die manuelle Eingabe — das Foto wird dabei trotzdem übernommen.</string>
     <string name="hinweis_offline_titel">Keine Internetverbindung</string>
     <string name="hinweis_offline_text">Die Foto-Erkennung braucht eine Internetverbindung. Das Foto bleibt erhalten — du kannst die Angaben auch ohne Netz manuell ergänzen.</string>
     <string name="hinweis_nicht_genug_daten_titel">Nicht genug Daten gefunden</string>

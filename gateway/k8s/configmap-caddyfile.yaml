@@ -1,0 +1,11 @@
+# Caddyfile als ConfigMap — änderbar per `kubectl apply`, kein Image-Rebuild nötig.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-caddyfile
+data:
+  Caddyfile: |
+    gateway.dornbirn.ipv64.net {
+        tls /certs/tls.crt /certs/tls.key
+        reverse_proxy localhost:8080
+    }

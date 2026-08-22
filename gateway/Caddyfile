@@ -1,0 +1,7 @@
+# TLS-Zertifikat kommt von der pfSense (ACME-Paket, DNS-01 über ipv64.net) —
+# Caddy beschafft hier NICHTS selbst, sondern nutzt nur, was der
+# cert-sync-CronJob als Secret "gateway-tls" bereitstellt (siehe k8s/).
+gateway.dornbirn.ipv64.net {
+	tls /certs/tls.crt /certs/tls.key
+	reverse_proxy localhost:8080
+}

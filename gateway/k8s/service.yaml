@@ -1,0 +1,15 @@
+# MetalLB vergibt automatisch eine feste IP aus deinem Pool (kein Ingress-
+# Controller im Cluster, siehe Plan). Portforwarding in der pfSense zeigt auf
+# diese IP, Port 443.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: gateway
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443

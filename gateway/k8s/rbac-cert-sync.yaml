@@ -1,0 +1,36 @@
+# Eingeschränkte Rechte für den Cert-Sync-CronJob: nur das gateway-tls-Secret
+# lesen/schreiben und das gateway-Deployment neu starten dürfen — kein
+# breiterer Cluster-Zugriff nötig.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway-cert-sync
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gateway-cert-sync
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["gateway-tls"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"] # einmalig, falls das Secret noch nicht existiert
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["gateway"]
+    verbs: ["get", "patch"] # für "kubectl rollout restart"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gateway-cert-sync
+subjects:
+  - kind: ServiceAccount
+    name: gateway-cert-sync
+roleRef:
+  kind: Role
+  name: gateway-cert-sync
+  apiGroup: rbac.authorization.k8s.io
