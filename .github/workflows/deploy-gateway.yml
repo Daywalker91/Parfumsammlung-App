@@ -43,7 +43,7 @@ jobs:
           context: gateway
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/parfumsammlung-gateway:${{ github.sha }}
+          tags: ghcr.io/daywalker91/parfumsammlung-gateway:${{ github.sha }}
 
       # ArgoCD kennt nur, was in Git steht — der neue Image-Tag muss also ins
       # Manifest zurückgeschrieben werden, nicht nur in die Registry gepusht
@@ -52,7 +52,7 @@ jobs:
       - name: Image-Tag im Deployment aktualisieren
         run: |
           git checkout -B "${{ github.ref_name }}"
-          sed -i "s|image: ghcr.io/.*/parfumsammlung-gateway:.*|image: ghcr.io/${{ github.repository_owner }}/parfumsammlung-gateway:${{ github.sha }}|" gateway/k8s/deployment.yaml
+          sed -i "s|image: ghcr.io/.*/parfumsammlung-gateway:.*|image: ghcr.io/daywalker91/parfumsammlung-gateway:${{ github.sha }}|" gateway/k8s/deployment.yaml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add gateway/k8s/deployment.yaml
