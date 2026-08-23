@@ -52,13 +52,16 @@ kubectl create secret generic gateway-pfsense-ssh-key \
 kubectl create secret generic gateway-pfsense-sftp \
   --from-literal=PFSENSE_HOST='<interne-oder-externe-pfSense-IP>' \
   --from-literal=PFSENSE_USER='<der-eben-angelegte-nutzer>' \
-  --from-literal=PFSENSE_CERT_PATH='<pfad-zur-cert.pem-auf-der-pfsense>' \
-  --from-literal=PFSENSE_KEY_PATH='<pfad-zur-key.pem-auf-der-pfsense>'
+  --from-literal=PFSENSE_CERT_PATH='/conf/acme/Gateway-Cert.fullchain' \
+  --from-literal=PFSENSE_KEY_PATH='/conf/acme/Gateway-Cert.key'
 ```
 
-Die genauen Pfade unter `PFSENSE_CERT_PATH`/`PFSENSE_KEY_PATH` hängen von der pfSense-/
-ACME-Paket-Version ab — typischerweise unter `/var/etc/acme/<certname>/` o. ä., am besten
-einmal per SSH auf der pfSense nachsehen (`find / -iname "*.pem" 2>/dev/null | grep acme`).
+Die Pfade sind auf dieser pfSense bereits bekannt (Dienste → ACME → General Settings →
+"Write ACME certificates to /conf/acme/" ist aktiv, Zertifikat heißt "Gateway-Cert"):
+`ls -la /conf/acme/` zeigt `Gateway-Cert.crt` (nur Leaf-Zertifikat), `Gateway-Cert.fullchain`
+(Leaf + Intermediate — das nehmen wir für Caddy, robuster gegenüber Clients, die die
+Zwischenzertifikate nicht selbst nachladen) und `Gateway-Cert.key` (Private Key). Falls du das
+Zertifikat mal umbenennst, ändern sich diese Pfade entsprechend (`<neuer-name>.fullchain`/`.key`).
 
 ## 3. Wildcard-Zertifikat in der pfSense beantragen
 
