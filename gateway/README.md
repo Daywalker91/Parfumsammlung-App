@@ -69,26 +69,47 @@ System > ACME Certificates > neues Zertifikat für `*.dornbirn.ipv64.net`, DNS-0
 über die ipv64.net-API (Zugangsdaten dafür hast du schon, siehe Dynamic-DNS-Konfiguration).
 Kein Port 80 nötig.
 
-## 4. RBAC + Cert-Sync-CronJob zuerst anwenden
+## 4. Manifeste ausrollen — über ArgoCD (empfohlen, passend zu deinem Setup)
+
+Da du Deployments schon über ArgoCD aus Git-Pfaden synct: eine neue Application anlegen, die
+auf `gateway/k8s/` in diesem Repo zeigt (Branch `Stable`, sobald der Gateway-Zweig dort landet
+— bis dahin testweise auch auf `Experimental` zeigen lassen). ArgoCD zieht sich dann RBAC,
+ConfigMaps, CronJob, Deployment und Service von dort automatisch, genau wie deine anderen Apps.
+Der Deploy-Workflow (`.github/workflows/deploy-gateway.yml`) baut bei jedem Push auf `gateway/**`
+ein neues arm64-Image und schreibt den Tag direkt in `gateway/k8s/deployment.yaml` zurück —
+ArgoCD synct diese Änderung dann wie jede andere.
+
+**Wichtig — Bootstrap-Reihenfolge:** Die vier Secrets aus Schritt 2 liegen bewusst NICHT in
+Git (siehe dort) und müssen deshalb einmalig manuell gesetzt sein, *bevor* ArgoCD synct, sonst
+startet die Gateway-Pod nicht (fehlende Env-Vars) bzw. Caddy findet kein Zertifikat. Der
+Cert-Sync-CronJob braucht außerdem einen ersten manuellen Lauf, damit das `gateway-tls`-Secret
+überhaupt existiert:
+
+```bash
+kubectl create job --from=cronjob/gateway-cert-sync gateway-cert-sync-manuell
+kubectl logs -f job/gateway-cert-sync-manuell
+kubectl get secret gateway-tls   # muss jetzt existieren
+```
+
+Bis dahin zeigt ArgoCD die Gateway-Application ggf. als "Degraded" (Pod pending/crashloop wegen
+fehlendem Secret) — das legt sich von selbst, sobald der CronJob einmal durchgelaufen ist.
+
+**Alternative ohne ArgoCD** (falls du es doch lieber klassisch von Hand machen willst):
 
 ```bash
 kubectl apply -f k8s/rbac-cert-sync.yaml
 kubectl apply -f k8s/configmap-cert-sync-script.yaml
 kubectl apply -f k8s/cronjob-cert-sync.yaml
-# Einmal manuell anstoßen, statt auf den nächtlichen Zeitplan zu warten:
 kubectl create job --from=cronjob/gateway-cert-sync gateway-cert-sync-manuell
 kubectl logs -f job/gateway-cert-sync-manuell
-```
-
-Danach muss `kubectl get secret gateway-tls` existieren, bevor die Gateway-Pod startet
-(sie mountet dieses Secret für Caddy).
-
-## 5. Restliche Manifeste anwenden
-
-```bash
 kubectl apply -f k8s/configmap-caddyfile.yaml
 kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/deployment.yaml
+```
+
+## 5. Netzwerk
+
+```bash
 kubectl get svc gateway   # MetalLB-IP notieren
 ```
 
