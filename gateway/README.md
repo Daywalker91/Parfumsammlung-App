@@ -72,12 +72,15 @@ Kein Port 80 nötig.
 ## 4. Manifeste ausrollen — über ArgoCD (empfohlen, passend zu deinem Setup)
 
 Da du Deployments schon über ArgoCD aus Git-Pfaden synct: eine neue Application anlegen, die
-auf `gateway/k8s/` in diesem Repo zeigt (Branch `Stable`, sobald der Gateway-Zweig dort landet
-— bis dahin testweise auch auf `Experimental` zeigen lassen). ArgoCD zieht sich dann RBAC,
-ConfigMaps, CronJob, Deployment und Service von dort automatisch, genau wie deine anderen Apps.
-Der Deploy-Workflow (`.github/workflows/deploy-gateway.yml`) baut bei jedem Push auf `gateway/**`
-ein neues arm64-Image und schreibt den Tag direkt in `gateway/k8s/deployment.yaml` zurück —
-ArgoCD synct diese Änderung dann wie jede andere.
+auf `gateway/k8s/` in diesem Repo zeigt, **Branch `Gateway`** — eigener Branch statt Stable/
+Experimental, weil App-Releases und Gateway-Deploys unterschiedliche Lebenszyklen haben (ein
+App-Release soll nicht durch eine reine Gateway-Änderung ausgelöst werden und umgekehrt).
+Gateway-Entwicklung läuft weiter ganz normal auf `Experimental`; ein Merge nach `Gateway` ist
+der eigentliche "Jetzt deployen"-Schritt (gleiches Prinzip wie Experimental → Stable bei der App).
+ArgoCD zieht sich dann RBAC, ConfigMaps, CronJob, Deployment und Service von dort automatisch,
+genau wie deine anderen Apps. Der Deploy-Workflow (`.github/workflows/deploy-gateway.yml`) baut
+bei jedem Push auf `Gateway` (Pfad `gateway/**`) ein neues arm64-Image und schreibt den Tag
+direkt in `gateway/k8s/deployment.yaml` zurück — ArgoCD synct diese Änderung dann wie jede andere.
 
 **Wichtig — Bootstrap-Reihenfolge:** Die vier Secrets aus Schritt 2 liegen bewusst NICHT in
 Git (siehe dort) und müssen deshalb einmalig manuell gesetzt sein, *bevor* ArgoCD synct, sonst

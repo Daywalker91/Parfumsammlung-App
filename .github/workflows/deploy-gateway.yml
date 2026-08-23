@@ -7,7 +7,11 @@ name: Deploy Gateway
 # Siehe gateway/README.md für die einmalige ArgoCD-Application-Einrichtung.
 on:
   push:
-    branches: [Stable]
+    # Eigener Branch statt Stable/Experimental — App-Releases und
+    # Gateway-Deploys haben unterschiedliche Lebenszyklen (siehe
+    # gateway/README.md). Gateway-Arbeit läuft weiter auf Experimental,
+    # ein Merge nach Gateway löst erst den eigentlichen Deploy aus.
+    branches: [Gateway]
     paths:
       - "gateway/**"
   workflow_dispatch:
