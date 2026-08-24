@@ -5,6 +5,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: gateway-cert-sync
+  namespace: aromathek-gateway
 spec:
   schedule: "17 3 * * *" # taeglich nachts, unauffaellige Uhrzeit
   jobTemplate:
