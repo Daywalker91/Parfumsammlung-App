@@ -5,6 +5,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gateway
+  namespace: aromathek-gateway
 spec:
   type: LoadBalancer
   selector:
