@@ -11,13 +11,14 @@ data:
     apk add --no-cache openssh-client >/dev/null
 
     mkdir -p ~/.ssh
-    cp /ssh/id_ed25519 ~/.ssh/id_ed25519
+    # ssh-privatekey ist der vorgeschriebene Schlüsselname bei
+    # type: kubernetes.io/ssh-auth (siehe secret-ssh.yaml).
+    cp /ssh/ssh-privatekey ~/.ssh/id_ed25519
     chmod 600 ~/.ssh/id_ed25519
     ssh-keyscan -H "$PFSENSE_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-    # Exakte Pfade der Zertifikatsdateien hängen von der pfSense-/ACME-Paket-
-    # Version ab (siehe Plan "ermitteln wir beim Einrichten") — hier als Env
-    # konfigurierbar statt fest im Skript.
+    # PFSENSE_HOST/_CERT_PATH/_KEY_PATH kommen aus der ConfigMap, PFSENSE_USER
+    # aus dem Secret (siehe config.yaml/secret.yaml).
     sftp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST" <<SFTP
     get $PFSENSE_CERT_PATH /tmp/tls.crt
     get $PFSENSE_KEY_PATH /tmp/tls.key
