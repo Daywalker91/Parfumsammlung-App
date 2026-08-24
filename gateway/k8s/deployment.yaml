@@ -39,23 +39,9 @@ spec:
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 300m, memory: 256Mi }
-          env:
-            - name: PORT
-              value: "8080"
-            - name: DB_HOST
-              value: "mariadb.default.svc.cluster.local" # ggf. Namespace/Service-Namen anpassen
-            - name: DB_NAME
-              value: "parfumsammlung_gateway"
-            - name: DB_USER
-              valueFrom: { secretKeyRef: { name: gateway-db-credentials, key: user } }
-            - name: DB_PASSWORD
-              valueFrom: { secretKeyRef: { name: gateway-db-credentials, key: password } }
-            - name: ADMIN_USER
-              valueFrom: { secretKeyRef: { name: gateway-admin-credentials, key: user } }
-            - name: ADMIN_PASSWORD
-              valueFrom: { secretKeyRef: { name: gateway-admin-credentials, key: password } }
-            - name: GATEWAY_ENC_KEY
-              valueFrom: { secretKeyRef: { name: gateway-enc-key, key: key } }
+          envFrom:
+            - configMapRef: { name: gateway-config }
+            - secretRef: { name: gateway-secret }
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 5

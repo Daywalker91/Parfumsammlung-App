@@ -19,7 +19,8 @@ spec:
               image: alpine/k8s:1.31.1
               command: ["/bin/sh", "/scripts/sync.sh"]
               envFrom:
-                - secretRef: { name: gateway-pfsense-sftp }
+                - configMapRef: { name: gateway-config }
+                - secretRef: { name: gateway-secret }
               volumeMounts:
                 - name: script
                   mountPath: /scripts

@@ -10,7 +10,7 @@ Auf deiner bestehenden MariaDB-Instanz:
 
 ```sql
 CREATE DATABASE parfumsammlung_gateway CHARACTER SET utf8mb4;
-CREATE USER 'gateway'@'%' IDENTIFIED BY '<sicheres-passwort>';
+CREATE USER 'gateway'@'%' IDENTIFIED BY '<dasselbe-passwort-wie-DB_PASSWORD-in-secret.yaml>';
 GRANT ALL PRIVILEGES ON parfumsammlung_gateway.* TO 'gateway'@'%';
 FLUSH PRIVILEGES;
 ```
@@ -32,47 +32,40 @@ kubectl apply -f k8s/namespace.yaml
 
 Alle Manifeste in `gateway/k8s/` haben `namespace: aromathek-gateway` bereits fest gesetzt.
 
-## 3. Kubernetes-Secrets anlegen
+## 3. Secrets/Config befüllen
 
-Vier Secrets, keines davon im Git — alle einmalig manuell setzen (`-n aromathek-gateway` nicht vergessen):
+Drei Vorlagen liegen in `gateway/k8s/` (Platzhalter-Werte, **niemals hier mit echten Werten
+committen** — dieses Repo ist öffentlich):
 
-```bash
-# DB-Zugangsdaten
-kubectl create secret generic gateway-db-credentials -n aromathek-gateway \
-  --from-literal=user=gateway \
-  --from-literal=password='<das-passwort-von-oben>'
+- `config.yaml` — ConfigMap `gateway-config`, alles was kein Geheimnis ist (Port, DB-Host/-Name,
+  pfSense-Host + Zertifikatspfade fürs Cert-Sync).
+- `secret.yaml` — `type: Opaque`, DB-/Admin-Zugangsdaten, der AES-Schlüssel für die Anthropic-
+  Key-Verschlüsselung und der pfSense-SFTP-Nutzername.
+- `secret-ssh.yaml` — `type: kubernetes.io/ssh-auth`, der private SSH-Key für den nur-lesenden
+  Cert-Sync-Zugriff auf die pfSense (Schlüsselname `ssh-privatekey` ist von Kubernetes für
+  diesen Secret-Typ vorgeschrieben).
 
-# Admin-UI-Login (frei wählbar, langer zufälliger String empfohlen)
-kubectl create secret generic gateway-admin-credentials -n aromathek-gateway \
-  --from-literal=user=admin \
-  --from-literal=password="$(openssl rand -base64 24)"
+Echte Werte kommen in deine private Kopie dieser drei Dateien in `Repository` (dort liegen z. B.
+schon `Smart Home/InfluxDB/config.yaml`/`secret.yaml` nach demselben Muster) — Struktur/Keys
+1:1 übernehmen, nur `data`/`stringData` befüllen:
 
-# AES-256-Schlüssel für die Anthropic-Key-Verschlüsselung in der DB
-kubectl create secret generic gateway-enc-key -n aromathek-gateway \
-  --from-literal=key="$(openssl rand -hex 32)"
+- `DB_USER`/`DB_PASSWORD` — dasselbe Passwort wie in Schritt 1 bei `CREATE USER`.
+- `ADMIN_USER`/`ADMIN_PASSWORD` — Login fürs `/admin`-Dashboard, langer zufälliger String empfohlen
+  (`openssl rand -base64 24`).
+- `GATEWAY_ENC_KEY` — `openssl rand -hex 32`.
+- `PFSENSE_HOST`/`PFSENSE_USER` — IP/Hostname + ein eigens angelegter, eingeschränkter
+  Nur-Lese-Nutzer auf der pfSense (System > User Manager).
+- `ssh-privatekey` in `secret-ssh.yaml` — `ssh-keygen -t ed25519 -f gateway-pfsense-key -N ""`,
+  den Inhalt der privaten Schlüsseldatei rein, den zugehörigen PUBLIC Key (`.pub`) auf der
+  pfSense beim eben angelegten Nutzer als "Authorized Key" hinterlegen.
+- `PFSENSE_CERT_PATH`/`PFSENSE_KEY_PATH` in `config.yaml` — auf dieser pfSense bereits bekannt
+  (Dienste → ACME → General Settings → "Write ACME certificates to /conf/acme/" ist aktiv,
+  Zertifikat heißt "Gateway-Cert"): `/conf/acme/Gateway-Cert.fullchain` (Leaf + Intermediate —
+  robuster für Caddy als nur `.crt`) und `/conf/acme/Gateway-Cert.key`.
 
-# SSH-Key-Paar für den Cert-Sync (nur-lesender Zugriff auf die pfSense-Zertifikatsdateien)
-ssh-keygen -t ed25519 -f /tmp/gateway-pfsense-key -N ""
-kubectl create secret generic gateway-pfsense-ssh-key -n aromathek-gateway \
-  --from-file=id_ed25519=/tmp/gateway-pfsense-key
-# Den zugehörigen PUBLIC Key (/tmp/gateway-pfsense-key.pub) auf der pfSense unter
-# System > User Manager als "Authorized Key" für einen eigens angelegten,
-# eingeschränkten Nur-Lese-Nutzer hinterlegen.
-
-# Verbindungsdaten für den Cert-Sync (Host + Nutzername + Dateipfade)
-kubectl create secret generic gateway-pfsense-sftp -n aromathek-gateway \
-  --from-literal=PFSENSE_HOST='<interne-oder-externe-pfSense-IP>' \
-  --from-literal=PFSENSE_USER='<der-eben-angelegte-nutzer>' \
-  --from-literal=PFSENSE_CERT_PATH='/conf/acme/Gateway-Cert.fullchain' \
-  --from-literal=PFSENSE_KEY_PATH='/conf/acme/Gateway-Cert.key'
-```
-
-Die Pfade sind auf dieser pfSense bereits bekannt (Dienste → ACME → General Settings →
-"Write ACME certificates to /conf/acme/" ist aktiv, Zertifikat heißt "Gateway-Cert"):
-`ls -la /conf/acme/` zeigt `Gateway-Cert.crt` (nur Leaf-Zertifikat), `Gateway-Cert.fullchain`
-(Leaf + Intermediate — das nehmen wir für Caddy, robuster gegenüber Clients, die die
-Zwischenzertifikate nicht selbst nachladen) und `Gateway-Cert.key` (Private Key). Falls du das
-Zertifikat mal umbenennst, ändern sich diese Pfade entsprechend (`<neuer-name>.fullchain`/`.key`).
+Danach `kubectl apply -f config.yaml -f secret.yaml -f secret-ssh.yaml -n aromathek-gateway`
+aus deiner privaten Kopie — oder, sobald die ArgoCD-Application dafür existiert, einfach committen
+und syncen lassen.
 
 ## 4. Wildcard-Zertifikat in der pfSense beantragen
 
@@ -93,8 +86,9 @@ genau wie deine anderen Apps. Der Deploy-Workflow (`.github/workflows/deploy-gat
 bei jedem Push auf `Gateway` (Pfad `gateway/**`) ein neues arm64-Image und schreibt den Tag
 direkt in `gateway/k8s/deployment.yaml` zurück — ArgoCD synct diese Änderung dann wie jede andere.
 
-**Wichtig — Bootstrap-Reihenfolge:** Namespace (Schritt 2) und die vier Secrets (Schritt 3)
-liegen bewusst NICHT in Git (siehe dort) und müssen deshalb einmalig manuell gesetzt sein,
+**Wichtig — Bootstrap-Reihenfolge:** Namespace (Schritt 2) und die echt befüllten Config-/
+Secret-Dateien (Schritt 3) liegen bewusst NICHT in diesem Repo (siehe dort) und müssen deshalb
+einmalig manuell gesetzt sein,
 *bevor* ArgoCD synct, sonst startet die Gateway-Pod nicht (fehlende Env-Vars) bzw. Caddy findet
 kein Zertifikat. Der Cert-Sync-CronJob braucht außerdem einen ersten manuellen Lauf, damit das
 `gateway-tls`-Secret überhaupt existiert:
@@ -120,6 +114,8 @@ kubectl apply -f k8s/configmap-caddyfile.yaml
 kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/deployment.yaml
 ```
+(`config.yaml`/`secret.yaml`/`secret-ssh.yaml` aus deiner privaten, echt befüllten Kopie kommen
+vor `deployment.yaml`/`cronjob-cert-sync.yaml` dran, sonst fehlen den Pods die Env-Vars.)
 
 ## 6. Netzwerk
 
