@@ -17,12 +17,16 @@ data:
     chmod 600 ~/.ssh/id_ed25519
     ssh-keyscan -H "$PFSENSE_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
+    # scp statt sftp: der chrootete scponly-Nutzer auf der pfSense unterstuetzt
+    # das SFTP-Subsystem nicht (live getestet -- "Sending subsystem: sftp"
+    # scheitert sofort mit Exit 1), scp funktioniert dagegen direkt. Pfade
+    # sind relativ zum Jail-Root (= Home-Verzeichnis des Nutzers), nicht mehr
+    # absolut wie /conf/acme/... -- die Zertifikate muessen also per ACME-
+    # Post-Renewal-Aktion dorthin kopiert werden (siehe README).
     # PFSENSE_HOST/_CERT_PATH/_KEY_PATH kommen aus der ConfigMap, PFSENSE_USER
     # aus dem Secret (siehe config.yaml/secret.yaml).
-    sftp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST" <<SFTP
-    get $PFSENSE_CERT_PATH /tmp/tls.crt
-    get $PFSENSE_KEY_PATH /tmp/tls.key
-    SFTP
+    scp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_CERT_PATH" /tmp/tls.crt
+    scp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_KEY_PATH" /tmp/tls.key
 
     NEUER_HASH=$(cat /tmp/tls.crt /tmp/tls.key | sha256sum | cut -d' ' -f1)
     ALTER_HASH=$(kubectl get secret gateway-tls -o jsonpath='{.metadata.annotations.cert-hash}' 2>/dev/null || echo "")
