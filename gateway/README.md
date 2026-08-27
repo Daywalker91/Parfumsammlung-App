@@ -107,8 +107,18 @@ Gateway-Entwicklung läuft weiter ganz normal auf `Experimental`; ein Merge nach
 der eigentliche "Jetzt deployen"-Schritt (gleiches Prinzip wie Experimental → Stable bei der App).
 ArgoCD zieht sich dann RBAC, ConfigMaps, CronJob, Deployment und Service von dort automatisch,
 genau wie deine anderen Apps. Der Deploy-Workflow (`.github/workflows/deploy-gateway.yml`) baut
-bei jedem Push auf `Gateway` (Pfad `gateway/**`) ein neues arm64-Image und schreibt den Tag
-direkt in `gateway/k8s/deployment.yaml` zurück — ArgoCD synct diese Änderung dann wie jede andere.
+bei jedem Push auf `Gateway` (Pfad `gateway/**`) ein neues arm64-Image und pusht es unter zwei
+Tags: dem Commit-SHA (Rückverfolgbarkeit) und `latest`. Das Deployment referenziert dauerhaft
+`:latest` (`imagePullPolicy: Always`) — das Manifest ändert sich dadurch nie, kein
+Zurückschreiben in Git nötig, kein Auseinanderlaufen zwischen dieser Vorlage und einer privaten
+Kopie davon mehr möglich (genau das ist uns beim ersten Rollout live passiert, siehe Fix-Commit).
+
+**Kehrseite:** ArgoCD sieht bei einem neuen `:latest`-Build keine Text-Änderung im Manifest und
+synct deshalb nichts automatisch neu aus. Nach einem Gateway-Code-Update muss der Pod manuell
+neu gestartet werden, damit er das frische Image zieht:
+```bash
+kubectl rollout restart deployment/gateway -n aromathek-gateway
+```
 
 **Wichtig — Bootstrap-Reihenfolge:** Namespace (Schritt 2) und die echt befüllten Config-/
 Secret-Dateien (Schritt 3) liegen bewusst NICHT in diesem Repo (siehe dort) und müssen deshalb

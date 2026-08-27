@@ -1,9 +1,18 @@
 name: Deploy Gateway
 
-# Reines GitOps: CI baut nur das Image und schreibt den neuen Tag zurück ins
-# Deployment-Manifest (gateway/k8s/deployment.yaml). ArgoCD zieht sich die
-# Manifeste aus diesem Repo-Pfad selbst — kein self-hosted Runner, kein
-# Image Updater nötig, ArgoCD synct die Änderung wie jede andere.
+# CI baut das Image und pusht es mit ZWEI Tags: dem Commit-SHA (unveränderlich,
+# fürs Nachvollziehen/Rollback) und "latest" (mutable, immer der neueste Stand).
+# Das Deployment-Manifest referenziert dauerhaft nur ":latest" und muss sich
+# deshalb nie mehr ändern -- kein Zurückschreiben in Git nötig, kein
+# Auseinanderlaufen zwischen dem öffentlichen Manifest und privaten Kopien
+# davon (z. B. in einem separaten ArgoCD-Repo) mehr möglich.
+#
+# Kehrseite: ArgoCD sieht bei einem neuen ":latest"-Build keine Text-Änderung
+# im Manifest und synct deshalb nichts automatisch neu aus. Nach einem
+# Gateway-Code-Update muss der laufende Pod manuell neu gestartet werden,
+# damit er das frische Image zieht:
+#   kubectl rollout restart deployment/gateway -n aromathek-gateway
+#
 # Siehe gateway/README.md für die einmalige ArgoCD-Application-Einrichtung.
 on:
   push:
@@ -20,7 +29,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -43,18 +52,6 @@ jobs:
           context: gateway
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/daywalker91/parfumsammlung-gateway:${{ github.sha }}
-
-      # ArgoCD kennt nur, was in Git steht — der neue Image-Tag muss also ins
-      # Manifest zurückgeschrieben werden, nicht nur in die Registry gepusht
-      # werden. [skip ci] verhindert, dass dieser Commit den Workflow erneut
-      # auslöst (gateway/** matcht sonst auch diese eigene Änderung).
-      - name: Image-Tag im Deployment aktualisieren
-        run: |
-          git checkout -B "${{ github.ref_name }}"
-          sed -i "s|image: ghcr.io/.*/parfumsammlung-gateway:.*|image: ghcr.io/daywalker91/parfumsammlung-gateway:${{ github.sha }}|" gateway/k8s/deployment.yaml
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add gateway/k8s/deployment.yaml
-          git diff --cached --quiet || git commit -m "gateway: Image-Tag auf ${{ github.sha }} aktualisiert [skip ci]"
-          git push origin "${{ github.ref_name }}"
+          tags: |
+            ghcr.io/daywalker91/parfumsammlung-gateway:${{ github.sha }}
+            ghcr.io/daywalker91/parfumsammlung-gateway:latest
