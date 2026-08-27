@@ -106,12 +106,22 @@ App-Release soll nicht durch eine reine Gateway-Änderung ausgelöst werden und 
 Gateway-Entwicklung läuft weiter ganz normal auf `Experimental`; ein Merge nach `Gateway` ist
 der eigentliche "Jetzt deployen"-Schritt (gleiches Prinzip wie Experimental → Stable bei der App).
 ArgoCD zieht sich dann RBAC, ConfigMaps, CronJob, Deployment und Service von dort automatisch,
-genau wie deine anderen Apps. Der Deploy-Workflow (`.github/workflows/deploy-gateway.yml`) baut
-bei jedem Push auf `Gateway` (Pfad `gateway/**`) ein neues arm64-Image und pusht es unter zwei
-Tags: dem Commit-SHA (Rückverfolgbarkeit) und `latest`. Das Deployment referenziert dauerhaft
-`:latest` (`imagePullPolicy: Always`) — das Manifest ändert sich dadurch nie, kein
-Zurückschreiben in Git nötig, kein Auseinanderlaufen zwischen dieser Vorlage und einer privaten
-Kopie davon mehr möglich (genau das ist uns beim ersten Rollout live passiert, siehe Fix-Commit).
+genau wie deine anderen Apps.
+
+**Versionierung — dasselbe X.Y-Schema wie bei der App** (siehe `Parfum-App_CICD_Plan.md`), eigener
+Tag-Namensraum `gateway-vX.Y` (kollidiert nicht mit den App-eigenen `vX.Y`-Git-Tags im selben
+Repo):
+- Push auf `Gateway` → **automatisch** (wie `Stable` bei der App): X hoch, Y auf 0, Image-Tags
+  `stable`, `latest`, `<X>.<Y>` (+ immer der Commit-SHA).
+- `Experimental` → **nur manuell** per `workflow_dispatch` (wie bei der App, Actions-Tab → "Run
+  workflow" → Branch `Experimental` auswählen): Y hoch, Image-Tag `unstable` + `<X>.<Y>`, rührt
+  `stable`/`latest` nicht an.
+
+Das Deployment referenziert unabhängig davon dauerhaft `:latest` (`imagePullPolicy: Always`) —
+das Manifest ändert sich dadurch nie, kein Zurückschreiben in Git nötig, kein Auseinanderlaufen
+zwischen dieser Vorlage und einer privaten Kopie davon mehr möglich (genau das ist uns beim
+ersten Rollout live passiert, siehe Fix-Commit). Die `stable`/`unstable`/`<X>.<Y>`-Tags sind fürs
+manuelle Nachvollziehen/Pinnen/Rollback da, nicht für den automatischen Rollout.
 
 **Kehrseite:** ArgoCD sieht bei einem neuen `:latest`-Build keine Text-Änderung im Manifest und
 synct deshalb nichts automatisch neu aus. Nach einem Gateway-Code-Update muss der Pod manuell
