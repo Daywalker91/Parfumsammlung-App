@@ -35,7 +35,13 @@ spec:
 
         # Node/Express-Service — lauscht nur intern, Caddy ist die einzige Tür.
         - name: gateway
-          image: ghcr.io/daywalker91/parfumsammlung-gateway:b951075a721776ada088236867eb834aa80e454d
+          # Bewusst dauerhaft ":latest" -- CI pusht jeden Build sowohl unter
+          # dem Commit-SHA (Rueckverfolgbarkeit) als auch als "latest". Das
+          # Manifest muss sich dadurch nie mehr aendern (kein Zurueckschreiben
+          # in Git noetig). Nach einem Gateway-Update manuell neu starten:
+          # kubectl rollout restart deployment/gateway -n aromathek-gateway
+          image: ghcr.io/daywalker91/parfumsammlung-gateway:latest
+          imagePullPolicy: Always
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 300m, memory: 256Mi }
