@@ -35,7 +35,7 @@ spec:
 
         # Node/Express-Service — lauscht nur intern, Caddy ist die einzige Tür.
         - name: gateway
-          image: ghcr.io/daywalker91/parfumsammlung-gateway:71c97a77d5fb8d4a97d37b406e6a67d0f11297ad
+          image: ghcr.io/daywalker91/parfumsammlung-gateway:e6a4be375acc29f7a1d397aeb6c26d6dd83c6790
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 300m, memory: 256Mi }
