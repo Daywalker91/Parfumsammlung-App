@@ -58,10 +58,34 @@ schon `Smart Home/InfluxDB/config.yaml`/`secret.yaml` nach demselben Muster) —
 - `ssh-privatekey` in `secret-ssh.yaml` — `ssh-keygen -t ed25519 -f gateway-pfsense-key -N ""`,
   den Inhalt der privaten Schlüsseldatei rein, den zugehörigen PUBLIC Key (`.pub`) auf der
   pfSense beim eben angelegten Nutzer als "Authorized Key" hinterlegen.
-- `PFSENSE_CERT_PATH`/`PFSENSE_KEY_PATH` in `config.yaml` — auf dieser pfSense bereits bekannt
-  (Dienste → ACME → General Settings → "Write ACME certificates to /conf/acme/" ist aktiv,
-  Zertifikat heißt "Gateway-Cert"): `/conf/acme/Gateway-Cert.fullchain` (Leaf + Intermediate —
-  robuster für Caddy als nur `.crt`) und `/conf/acme/Gateway-Cert.key`.
+- `PFSENSE_CERT_PATH`/`PFSENSE_KEY_PATH` in `config.yaml` — **relativ zum Jail-Root** des
+  chrooteten scp-Nutzers (siehe unten), also `Gateway-Cert.fullchain`/`Gateway-Cert.key`, NICHT
+  der absolute `/conf/acme/...`-Pfad (da kommt der Nutzer nicht raus).
+
+### SSH-Nutzer für den Cert-Sync (live eingerichtet, hier dokumentiert)
+
+Live getestet und funktionsfähig:
+
+1. System → User Manager → neuen Nutzer anlegen (kein Passwort, keine `admins`-Gruppe), Public
+   Key ins Feld "Authorized SSH Keys".
+2. Effective Privileges → **"User - System: Copy files to home directory (chrooted scp)"**
+   hinzufügen — **nicht** "Copy files (scp)" (das ist laut pfSense selbst ein
+   Administratorrecht, volles Dateisystem statt Jail).
+3. Chroot einmalig aufbauen (Diagnose → Kommandozeile):
+   ```
+   /usr/local/etc/rc.d/scponlyc enable
+   /usr/local/etc/rc.d/scponlyc start
+   ```
+   Kommt beim ersten `start` ein Fehler wie `rmdir: /home/<user>/dev: No such file or directory`,
+   den fehlenden Ordner einmalig manuell anlegen (`mkdir -p /home/<user>/dev`) und `start` erneut
+   ausführen — danach läuft's.
+4. **Wichtig — nur `scp`, kein `sftp`:** live getestet, der SFTP-Subsystem-Aufruf scheitert im
+   Jail sofort mit `Exit status 1` (`scponly` unterstützt standardmäßig kein SFTP, nur SCP). Das
+   Sync-Script (`configmap-cert-sync-script.yaml`) nutzt deshalb `scp`, nicht `sftp`.
+5. Da der Nutzer im Jail nicht an `/conf/acme/` rankommt: in der ACME-Zertifikatskonfiguration
+   (Dienste → ACME → dein Zertifikat → Actions/Automations) eine **Post-Renewal-Aktion**
+   einrichten, die `Gateway-Cert.fullchain`/`Gateway-Cert.key` nach jeder Erneuerung ins
+   Home-Verzeichnis dieses Nutzers kopiert (Jail-Root).
 
 Danach `kubectl apply -f config.yaml -f secret.yaml -f secret-ssh.yaml -n aromathek-gateway`
 aus deiner privaten Kopie — oder, sobald die ArgoCD-Application dafür existiert, einfach committen
