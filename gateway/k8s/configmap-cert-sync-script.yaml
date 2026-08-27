@@ -25,8 +25,11 @@ data:
     # Post-Renewal-Aktion dorthin kopiert werden (siehe README).
     # PFSENSE_HOST/_CERT_PATH/_KEY_PATH kommen aus der ConfigMap, PFSENSE_USER
     # aus dem Secret (siehe config.yaml/secret.yaml).
-    scp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_CERT_PATH" /tmp/tls.crt
-    scp -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_KEY_PATH" /tmp/tls.key
+    # -O erzwingt das klassische SCP-Protokoll -- OpenSSH >= 9.0 nutzt sonst
+    # standardmaessig SFTP intern fuer "scp" (live reproduziert: "Executing:
+    # ... command sftp"), was im Jail genau wie reines sftp scheitert.
+    scp -O -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_CERT_PATH" /tmp/tls.crt
+    scp -O -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_KEY_PATH" /tmp/tls.key
 
     NEUER_HASH=$(cat /tmp/tls.crt /tmp/tls.key | sha256sum | cut -d' ' -f1)
     ALTER_HASH=$(kubectl get secret gateway-tls -o jsonpath='{.metadata.annotations.cert-hash}' 2>/dev/null || echo "")
