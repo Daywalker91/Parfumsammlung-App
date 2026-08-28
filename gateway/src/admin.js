@@ -46,6 +46,7 @@ function euro(microcent) {
 async function seite(req, res, hinweis) {
   const codes = await db.alleAccessCodes();
   const keys = await db.alleApiKeys();
+  const spendenLink = await db.holeSpendenLink();
 
   const keyOptionen = (ausgewaehlt) =>
     ['<option value="">— Standard —</option>']
@@ -129,6 +130,17 @@ ${keyZeilen}
   <button type="submit">Key eintragen</button>
 </form>
 
+<h2>Einstellungen</h2>
+<form class="inline" method="post" action="/admin/einstellungen">
+  <input name="spendenLink" placeholder="https://paypal.me/DeinName" value="${escapeHtml(spendenLink || '')}" size="40">
+  <button type="submit">Spenden-Link speichern</button>
+</form>
+<p style="color:#666; font-size:0.9em; max-width:600px;">
+  Wird per /v1/status an Apps ausgeliefert, die über einen Lizenzschlüssel laufen (nicht bei eigenem API-Key).
+  Die App hängt selbst den offenen Betrag an (z. B. .../DeinName/4.20EUR) — hier nur der Basis-Link ohne Betrag eintragen.
+  Leer lassen und speichern entfernt den Link wieder.
+</p>
+
 </body></html>`);
 }
 
@@ -173,6 +185,12 @@ router.post('/keys', asyncHandler(async (req, res) => {
 router.post('/keys/:id/toggle', asyncHandler(async (req, res) => {
   await db.pool.query('UPDATE api_keys SET aktiv = NOT aktiv WHERE id = ?', [req.params.id]);
   res.redirect('/admin');
+}));
+
+router.post('/einstellungen', asyncHandler(async (req, res) => {
+  const link = (req.body.spendenLink || '').trim();
+  await db.setzeSpendenLink(link || null);
+  await seite(req, res, link ? `Spenden-Link gespeichert: ${link}` : 'Spenden-Link entfernt.');
 }));
 
 router.post('/keys/:id/standard', asyncHandler(async (req, res) => {

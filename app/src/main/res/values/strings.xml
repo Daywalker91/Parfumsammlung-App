@@ -100,8 +100,9 @@
     <string name="verbrauch_beglichen">Verbrauch beglichen</string>
     <string name="verbrauch_schaetzung_hinweis">Geschätzt anhand der veröffentlichten Claude-Haiku-4.5-Preise — kein Live-Kontostand (dafür bräuchte es Admin-API-Zugriff, den ein persönlicher API-Key nicht hat).</string>
 
-    <!-- Spenden-Link (PayPal o. ä.) -->
-    <string name="spenden_link_feld">Spenden-Link (z. B. PayPal.me)</string>
+    <!-- Spenden-Link (PayPal o. ä.) — zentral vom Gateway-Betreiber über /admin gepflegt,
+         nur sichtbar bei Nutzung per Lizenzschlüssel -->
+    <string name="spenden_hinweis">Zum Ausgleich der Claude-API-Kosten — der Betrag "seit letzter Zahlung" wird automatisch an den Link angehängt.</string>
     <string name="spenden_button">Spenden</string>
 
     <!-- Batch-Fotoimport (Feature 6) -->

@@ -29,7 +29,10 @@ app.get('/v1/status', async (req, res) => {
     const verbleibendMicrocent = Math.max(0, eintrag.tageslimit_microcent - nutzung.kosten_microcent);
     // Grobe Anfragen-Schätzung nur für die Anzeige (5 Cent/Anfrage Richtwert) — das eigentliche Limit ist €-basiert.
     const verbleibendHeute = Math.floor(verbleibendMicrocent / 5_000_000);
-    res.json({ gueltig: true, verbleibendHeute });
+    // Zentral über /admin gepflegter Spenden-Link (siehe Plan) — Betrag hängt
+    // die App selbst an (kennt nur sie, "seit Zahlung" ist rein lokaler Zähler).
+    const spendenLink = await db.holeSpendenLink();
+    res.json({ gueltig: true, verbleibendHeute, ...(spendenLink ? { spendenLink } : {}) });
   } catch (e) {
     console.error('Fehler in /v1/status:', e);
     res.status(500).json({ gueltig: false, verbleibendHeute: 0 });
