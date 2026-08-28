@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: aromathek-gateway
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        # TLS-Terminierung — nutzt das von pfSense erneuerte Zertifikat (siehe
+        # cronjob-cert-sync.yaml), keine eigene ACME-Logik.
+        - name: caddy
+          image: caddy:2.9-alpine
+          ports:
+            - containerPort: 443
+            - containerPort: 80
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+            - name: tls
+              mountPath: /certs
+              readOnly: true
+
+        # Node/Express-Service — lauscht nur intern, Caddy ist die einzige Tür.
+        - name: gateway
+          # Bewusst dauerhaft ":latest" -- CI pusht jeden Build sowohl unter
+          # dem Commit-SHA (Rueckverfolgbarkeit) als auch als "latest". Das
+          # Manifest muss sich dadurch nie mehr aendern (kein Zurueckschreiben
+          # in Git noetig). Nach einem Gateway-Update manuell neu starten:
+          # kubectl rollout restart deployment/gateway -n aromathek-gateway
+          image: ghcr.io/daywalker91/parfumsammlung-gateway:latest
+          imagePullPolicy: Always
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          envFrom:
+            - configMapRef: { name: gateway-config }
+            - secretRef: { name: gateway-secret }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        - name: caddyfile
+          configMap: { name: gateway-caddyfile }
+        - name: tls
+          secret: { secretName: gateway-tls }

@@ -1,0 +1,21 @@
+# Caddyfile als ConfigMap — änderbar per `kubectl apply`, kein Image-Rebuild nötig.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-caddyfile
+  namespace: aromathek-gateway
+data:
+  Caddyfile: |
+    gateway.dornbirn.ipv64.net {
+        tls /certs/tls.crt /certs/tls.key
+        reverse_proxy localhost:8080
+    }
+
+    # Reines HTTP, ohne TLS — nur fürs interne Testen über den DMZ-eigenen
+    # DNS-Namen (z. B. aromathek-gateway.home.dmz), für den das Zertifikat
+    # naturgemäß nicht passt (das ist nur für gateway.dornbirn.ipv64.net
+    # gültig). Bleibt intern: es gibt keine NAT-Portweiterleitung für Port 80
+    # nach außen, nur für 443.
+    :80 {
+        reverse_proxy localhost:8080
+    }

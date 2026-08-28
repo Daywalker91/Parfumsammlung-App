@@ -27,6 +27,12 @@ val signingKeyAlias = project.findProperty("signingKeyAlias") as String?
 val signingKeyPassword = project.findProperty("signingKeyPassword") as String?
 val hasReleaseSigning = signingStoreFile != null
 
+// Lizenz-Gateway (siehe Plan "Lizenz-Gateway für geteilten Claude-API-Zugang"):
+// reine Server-Adresse, kein Geheimnis, darf fest einkompiliert sein. Leer in
+// lokalen Dev-Builds ohne -P-Property — dort funktioniert wie bisher nur ein
+// eigener Claude-Key (ClaudeService.kannAnfragenSenden()).
+val gatewayBaseUrl = project.findProperty("gatewayBaseUrl") as String? ?: ""
+
 android {
     namespace = "com.daywalker91.parfumsammlung"
     compileSdk = 36
@@ -37,6 +43,8 @@ android {
         targetSdk = 36
         versionCode = ciVersionCode
         versionName = ciVersionName
+
+        buildConfigField("String", "GATEWAY_BASE_URL", "\"$gatewayBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -115,13 +123,17 @@ dependencies {
     // EXIF-Auslesung (Bild-Rotation von Kamerafotos korrigieren)
     implementation(libs.androidx.exifinterface)
 
-    // Verschlüsselte Ablage des Gemini-API-Keys (Phase 4)
+    // Verschlüsselte Ablage des Claude-API-Keys (Phase 4)
     implementation(libs.androidx.security.crypto)
 
     // On-device Barcode-Scan, kein CameraX/eigene Kamera-UI nötig (Phase 3)
     implementation(libs.play.services.code.scanner)
 
-    // Gemini-REST-Calls (Phase 4) — bewusst kein Google-AI-SDK, um keine weitere
+    // Claude-REST-Calls (Phase 4) — bewusst kein offizielles SDK, um keine weitere
     // Dependency-Versionsfront neben AGP/Kotlin/Compose aufzumachen.
     implementation(libs.okhttp)
+
+    // Batch-Import mehrerer Fotos (Feature 6, Backend-Swap-Plan) als echter
+    // Hintergrund-Task, übersteht Verlassen der App/Bildschirm-Aus.
+    implementation(libs.androidx.work.runtime.ktx)
 }

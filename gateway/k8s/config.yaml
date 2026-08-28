@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: aromathek-gateway
+  name: gateway-config
+  labels:
+    app: gateway
+data:
+  PORT: "8080"
+  DB_HOST: "mariadb.default.svc.cluster.local" # ggf. Namespace/Service-Namen anpassen
+  DB_NAME: "parfumsammlung_gateway"
+  PFSENSE_HOST: "<pfsense-ip>"
+  # Relativ zum Jail-Root des chrooteten scp-Nutzers (Home-Verzeichnis), nicht
+  # der absolute /conf/acme/-Pfad -- der Nutzer kommt da nicht raus. Die ACME-
+  # Post-Renewal-Aktion muss die Zertifikate dorthin kopieren (siehe README).
+  PFSENSE_CERT_PATH: "Gateway-Cert.fullchain"
+  PFSENSE_KEY_PATH: "Gateway-Cert.key"

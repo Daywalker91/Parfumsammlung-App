@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-cert-sync-script
+  namespace: aromathek-gateway
+data:
+  sync.sh: |
+    #!/bin/sh
+    set -eu
+
+    apk add --no-cache openssh-client >/dev/null
+
+    mkdir -p ~/.ssh
+    # ssh-privatekey ist der vorgeschriebene Schlüsselname bei
+    # type: kubernetes.io/ssh-auth (siehe secret-ssh.yaml).
+    cp /ssh/ssh-privatekey ~/.ssh/id_ed25519
+    chmod 600 ~/.ssh/id_ed25519
+    ssh-keyscan -H "$PFSENSE_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+    # scp statt sftp: der chrootete scponly-Nutzer auf der pfSense unterstuetzt
+    # das SFTP-Subsystem nicht (live getestet -- "Sending subsystem: sftp"
+    # scheitert sofort mit Exit 1), scp funktioniert dagegen direkt. Pfade
+    # sind relativ zum Jail-Root (= Home-Verzeichnis des Nutzers), nicht mehr
+    # absolut wie /conf/acme/... -- die Zertifikate muessen also per ACME-
+    # Post-Renewal-Aktion dorthin kopiert werden (siehe README).
+    # PFSENSE_HOST/_CERT_PATH/_KEY_PATH kommen aus der ConfigMap, PFSENSE_USER
+    # aus dem Secret (siehe config.yaml/secret.yaml).
+    # -O erzwingt das klassische SCP-Protokoll -- OpenSSH >= 9.0 nutzt sonst
+    # standardmaessig SFTP intern fuer "scp" (live reproduziert: "Executing:
+    # ... command sftp"), was im Jail genau wie reines sftp scheitert.
+    scp -O -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_CERT_PATH" /tmp/tls.crt
+    scp -O -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 "$PFSENSE_USER@$PFSENSE_HOST:$PFSENSE_KEY_PATH" /tmp/tls.key
+
+    NEUER_HASH=$(cat /tmp/tls.crt /tmp/tls.key | sha256sum | cut -d' ' -f1)
+    ALTER_HASH=$(kubectl get secret gateway-tls -o jsonpath='{.metadata.annotations.cert-hash}' 2>/dev/null || echo "")
+
+    if [ "$NEUER_HASH" != "$ALTER_HASH" ]; then
+      kubectl create secret tls gateway-tls --cert=/tmp/tls.crt --key=/tmp/tls.key --dry-run=client -o yaml \
+        | kubectl label -f - --dry-run=client -o yaml --local app=gateway \
+        > /tmp/secret.yaml
+      kubectl apply -f /tmp/secret.yaml
+      kubectl annotate secret gateway-tls cert-hash="$NEUER_HASH" --overwrite
+      kubectl rollout restart deployment/gateway
+      echo "Zertifikat aktualisiert, Deployment neu gestartet."
+    else
+      echo "Zertifikat unveraendert, nichts zu tun."
+    fi

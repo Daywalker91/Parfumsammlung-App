@@ -61,7 +61,8 @@ jobs:
             -PsigningStoreFile="$RUNNER_TEMP/release.keystore" \
             -PsigningStorePassword=${{ secrets.KEYSTORE_PASSWORD }} \
             -PsigningKeyAlias=${{ secrets.KEY_ALIAS }} \
-            -PsigningKeyPassword=${{ secrets.KEY_PASSWORD }}
+            -PsigningKeyPassword=${{ secrets.KEY_PASSWORD }} \
+            -PgatewayBaseUrl=${{ secrets.GATEWAY_BASE_URL }}
 
       - uses: softprops/action-gh-release@v2
         with:

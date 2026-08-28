@@ -1,0 +1,38 @@
+# Holt sich taeglich das aktuelle Zertifikat von der pfSense (die Let's-
+# Encrypt-Erneuerung selbst laeuft komplett dort, siehe Plan) und aktualisiert
+# das gateway-tls-Secret nur bei tatsaechlicher Aenderung.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gateway-cert-sync
+  namespace: aromathek-gateway
+spec:
+  schedule: "17 3 * * *" # taeglich nachts, unauffaellige Uhrzeit
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: gateway-cert-sync
+          restartPolicy: OnFailure
+          containers:
+            - name: cert-sync
+              image: alpine/k8s:1.31.1
+              command: ["/bin/sh", "/scripts/sync.sh"]
+              envFrom:
+                - configMapRef: { name: gateway-config }
+                - secretRef: { name: gateway-secret }
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                - name: ssh-key
+                  mountPath: /ssh
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: gateway-cert-sync-script
+                defaultMode: 0755
+            - name: ssh-key
+              secret:
+                secretName: gateway-pfsense-ssh-key
+                defaultMode: 0400

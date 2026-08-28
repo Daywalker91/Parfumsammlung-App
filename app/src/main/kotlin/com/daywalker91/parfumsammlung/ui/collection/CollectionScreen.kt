@@ -1,8 +1,12 @@
 package com.daywalker91.parfumsammlung.ui.collection
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,8 +51,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -86,6 +93,16 @@ fun CollectionScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var ausgewaehlterTab by remember { mutableIntStateOf(0) }
     var zeigeDatenschutzHinweis by remember { mutableStateOf(!firstLaunchPrefs.datenschutzGesehen()) }
+    // Lizenz-Gateway-Onboarding (siehe Plan) — direkt nach dem Datenschutz-Hinweis, gleiches
+    // Einmalig-Muster, per "Später" überspringbar (App bleibt ohne KI-Funktion voll nutzbar).
+    var zeigeZugangsWahl by remember { mutableStateOf(!firstLaunchPrefs.zugangsWahlGesehen()) }
+    // Such-/Filterbereich ist standardmäßig eingeklappt (Nutzer-Feedback: nahm
+    // sonst dauerhaft Platz weg) — Ziehgriff darunter zum Auf-/Zuziehen.
+    var filterOffen by remember { mutableStateOf(false) }
+
+    // Greift z. B. beim Zurückkommen aus den Einstellungen, wo der Sortiermodus
+    // geändert worden sein könnte (siehe CollectionViewModel.sortModeNeuLaden).
+    LaunchedEffect(Unit) { viewModel.sortModeNeuLaden() }
 
     val updateViewModel: UpdateViewModel = viewModel(
         factory = viewModelFactory {
@@ -126,12 +143,16 @@ fun CollectionScreen(
                 )
             }
 
-            SuchUndFilterLeiste(
-                uiState = uiState,
-                onSuchtextAendern = viewModel::sucheAendern,
-                onMarkeFilterAendern = viewModel::markeFilterAendern,
-                onSaisonFilterAendern = viewModel::saisonFilterAendern,
-            )
+            FilterZiehgriff(offen = filterOffen, onOffenAendern = { filterOffen = it })
+
+            AnimatedVisibility(visible = filterOffen) {
+                SuchUndFilterLeiste(
+                    uiState = uiState,
+                    onSuchtextAendern = viewModel::sucheAendern,
+                    onMarkeFilterAendern = viewModel::markeFilterAendern,
+                    onSaisonFilterAendern = viewModel::saisonFilterAendern,
+                )
+            }
 
             val angezeigtePerfumes = if (ausgewaehlterTab == 0) uiState.besitzt else uiState.wunschliste
 
@@ -164,10 +185,90 @@ fun CollectionScreen(
                 }) { Text(stringResource(R.string.verstanden)) }
             },
         )
+    } else if (zeigeZugangsWahl) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.zugangswahl_titel)) },
+            text = { Text(stringResource(R.string.zugangswahl_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    firstLaunchPrefs.zugangsWahlAlsGesehenMarkieren()
+                    zeigeZugangsWahl = false
+                    onSettingsClick()
+                }) { Text(stringResource(R.string.zugangswahl_api_key_button)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        firstLaunchPrefs.zugangsWahlAlsGesehenMarkieren()
+                        zeigeZugangsWahl = false
+                    }) { Text(stringResource(R.string.spaeter)) }
+                    TextButton(onClick = {
+                        firstLaunchPrefs.zugangsWahlAlsGesehenMarkieren()
+                        zeigeZugangsWahl = false
+                        onSettingsClick()
+                    }) { Text(stringResource(R.string.zugangswahl_lizenzschluessel_button)) }
+                }
+            },
+        )
     }
 
     UpdateDialog(uiState = updateUiState, viewModel = updateViewModel)
 }
+
+/**
+ * Schmaler Ziehgriff (angelehnt an Samsungs Edge-Panel-Griff) unterhalb der
+ * Tabs — per Tap ODER per Runter-/Hochziehen wird der Such-/Filterbereich
+ * auf-/zugeklappt.
+ *
+ * Bewusst EIN einziger, selbst geschriebener Gesture-Loop (`awaitEachGesture`)
+ * statt separatem `clickable` + `detectVerticalDragGestures`: zwei
+ * unabhängige Gesture-Detectoren auf demselben Element reagieren beide auf
+ * denselben Tap (Compose koordiniert das nicht automatisch) — das führte
+ * dazu, dass ein einzelner Tap den Zustand zweimal umschaltete (auf→zu im
+ * selben Moment). Hier wird pro Geste nur EINMAL entschieden: kaum Bewegung
+ * bis zum Loslassen = Tap (toggelt), spürbare Bewegung = Ziehen (öffnet/
+ * schließt je nach Richtung).
+ */
+@Composable
+private fun FilterZiehgriff(offen: Boolean, onOffenAendern: (Boolean) -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(offen) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    var verschiebung = 0f
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.pressed) {
+                            verschiebung += change.positionChange().y
+                            change.consume()
+                        } else {
+                            break
+                        }
+                    }
+                    when {
+                        verschiebung > ZIEHGRIFF_SCHWELLE_PX -> onOffenAendern(true)
+                        verschiebung < -ZIEHGRIFF_SCHWELLE_PX -> onOffenAendern(false)
+                        else -> onOffenAendern(!offen) // kaum Bewegung = reiner Tap
+                    }
+                }
+            }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 36.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+        )
+    }
+}
+
+private const val ZIEHGRIFF_SCHWELLE_PX = 20f
 
 /** Volltextsuche über den Namen + Marke-/Saison-Filter — wirkt implizit kontextabhängig auf den gerade aktiven Tab. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -216,12 +317,27 @@ private fun SuchUndFilterLeiste(
         }
 
         Text(text = stringResource(R.string.filter_saison), style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Bewusst Row+weight statt FlowRow: alle drei Chips bleiben immer in
+        // einer Zeile und teilen sich die Breite gleichmäßig, statt dass der
+        // dritte Chip auf eine zweite Zeile umbricht (Nutzer-Feedback). Die
+        // Absicherung dafür ist maxLines=1+Ellipsis am Text, nicht eine
+        // kleinere Schrift — auf sehr schmalen Bildschirmen wird der Text im
+        // Zweifel gekürzt ("Frühling/S…") statt umzubrechen, die Schriftgröße
+        // bleibt regulär lesbar (zweite Nutzer-Rückmeldung: erst zu klein).
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
             Saison.entries.forEach { saison ->
                 FilterChip(
                     selected = uiState.saisonFilter == saison,
                     onClick = { onSaisonFilterAendern(if (uiState.saisonFilter == saison) null else saison) },
-                    label = { Text(saison.label()) },
+                    label = {
+                        Text(
+                            text = saison.label(),
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }

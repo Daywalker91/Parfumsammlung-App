@@ -1,12 +1,18 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Für Gemini-API-Calls (Bilderkennung) und den Self-Update-Mechanismus (GitHub Releases API) -->
+    <!-- Für Claude-API-Calls (Bilderkennung) und den Self-Update-Mechanismus (GitHub Releases API) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Für den Barcode-Scan (ML Kit Code Scanner) und die Foto-Aufnahme -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Für die Installation heruntergeladener Updates (Self-Update-Mechanismus) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Für den Batch-Fotoimport (Feature 6): Hintergrund-Task läuft als
+         Foreground-Service weiter, auch wenn die App verlassen wird. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:name=".AromathekApplication"
@@ -43,6 +49,31 @@
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode_ui" />
+
+        <!-- Seit Android 14 (targetSdk 36 hier) muss der Foreground-Service-Typ
+             zusätzlich STATISCH im Manifest stehen — der zur Laufzeit an
+             ForegroundInfo übergebene Typ (siehe PerfumeBatchWorker) allein
+             reicht nicht mehr, sonst crasht startForeground() mit
+             IllegalArgumentException (live reproduziert und gefixt). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
+        <!-- WorkManagers Standard-Initialisierung (über androidx.startup) abschalten —
+             AromathekApplication liefert stattdessen eine eigene Configuration mit
+             einer WorkerFactory, die dem PerfumeBatchWorker die manuelle DI aus
+             AppContainer injiziert (kein Hilt in diesem Projekt, siehe AppContainer.kt). -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup.InitializationProvider"
+                tools:node="remove" />
+        </provider>
 
     </application>
 

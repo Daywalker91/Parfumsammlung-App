@@ -12,6 +12,7 @@ import com.daywalker91.parfumsammlung.di.AppContainer
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import com.daywalker91.parfumsammlung.ui.addflow.AddChoiceScreen
 import com.daywalker91.parfumsammlung.ui.addflow.ManuelleSucheScreen
+import com.daywalker91.parfumsammlung.ui.batch.BatchReviewScreen
 import com.daywalker91.parfumsammlung.ui.collection.CollectionScreen
 import com.daywalker91.parfumsammlung.ui.detail.DetailScreen
 import com.daywalker91.parfumsammlung.ui.devoptions.DevOptionsScreen
@@ -28,6 +29,7 @@ object AromathekRoutes {
     const val ADD_CHOICE = "addChoice"
     const val MANUELLE_SUCHE = "manuelleSuche"
     const val EDITOR_VON_VORSCHLAG = "editorVonVorschlag"
+    const val BATCH_REVIEW = "batchReview"
     const val SETTINGS = "settings"
     const val DEV_OPTIONS = "devOptions"
 
@@ -62,8 +64,8 @@ fun AromathekNavHost(
             DetailScreen(
                 perfumeId = perfumeId,
                 repository = container.perfumeRepository,
-                geminiService = container.geminiService,
-                apiKeyStore = container.geminiApiKeyStore,
+                claudeService = container.claudeService,
+                apiKeyStore = container.claudeApiKeyStore,
                 onEditClick = { navController.navigate(AromathekRoutes.editor(perfumeId)) },
                 onBack = { navController.popBackStack() },
                 onDeleted = { navController.popBackStack(AromathekRoutes.COLLECTION, inclusive = false) },
@@ -83,8 +85,9 @@ fun AromathekNavHost(
                 perfumeId = perfumeId.takeIf { it != NEUES_PARFUM },
                 repository = container.perfumeRepository,
                 imageStorage = container.imageStorage,
-                geminiService = container.geminiService,
-                apiKeyStore = container.geminiApiKeyStore,
+                claudeService = container.claudeService,
+                apiKeyStore = container.claudeApiKeyStore,
+                bildDownloader = container.bildDownloader,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )
@@ -92,18 +95,22 @@ fun AromathekNavHost(
         composable(AromathekRoutes.ADD_CHOICE) {
             AddChoiceScreen(
                 imageStorage = container.imageStorage,
-                geminiService = container.geminiService,
-                apiKeyStore = container.geminiApiKeyStore,
+                claudeService = container.claudeService,
+                apiKeyStore = container.claudeApiKeyStore,
+                bildDownloader = container.bildDownloader,
+                workManager = container.workManager,
                 onNavigateToEditor = { navController.navigate(AromathekRoutes.EDITOR_VON_VORSCHLAG) },
                 onNavigateToManuelleSuche = { navController.navigate(AromathekRoutes.MANUELLE_SUCHE) },
+                onNavigateToBatchReview = { navController.navigate(AromathekRoutes.BATCH_REVIEW) },
                 onBack = { navController.popBackStack() },
             )
         }
         composable(AromathekRoutes.MANUELLE_SUCHE) {
             ManuelleSucheScreen(
-                geminiService = container.geminiService,
-                apiKeyStore = container.geminiApiKeyStore,
+                claudeService = container.claudeService,
+                apiKeyStore = container.claudeApiKeyStore,
                 imageStorage = container.imageStorage,
+                bildDownloader = container.bildDownloader,
                 onNavigateToEditor = { navController.navigate(AromathekRoutes.EDITOR_VON_VORSCHLAG) },
                 onBack = { navController.popBackStack() },
             )
@@ -116,8 +123,9 @@ fun AromathekNavHost(
                 perfumeId = null,
                 repository = container.perfumeRepository,
                 imageStorage = container.imageStorage,
-                geminiService = container.geminiService,
-                apiKeyStore = container.geminiApiKeyStore,
+                claudeService = container.claudeService,
+                apiKeyStore = container.claudeApiKeyStore,
+                bildDownloader = container.bildDownloader,
                 initialBildPfadEigen = payload?.bildPfadEigen,
                 initialBildPfadStock = payload?.bildPfadStock,
                 vorschlag = payload?.vorschlag,
@@ -126,11 +134,25 @@ fun AromathekNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+        composable(AromathekRoutes.BATCH_REVIEW) {
+            BatchReviewScreen(
+                workManager = container.workManager,
+                repository = container.perfumeRepository,
+                imageStorage = container.imageStorage,
+                batchErgebnisStore = container.batchErgebnisStore,
+                onFertig = { navController.popBackStack(AromathekRoutes.COLLECTION, inclusive = false) },
+                onNavigateToEditor = { navController.navigate(AromathekRoutes.EDITOR_VON_VORSCHLAG) },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable(AromathekRoutes.SETTINGS) {
             SettingsScreen(
-                apiKeyStore = container.geminiApiKeyStore,
+                apiKeyStore = container.claudeApiKeyStore,
                 backupManager = container.backupManager,
                 sortPreferenceStore = container.sortPreferenceStore,
+                usageCounterStore = container.usageCounterStore,
+                gatewayAccessCodeStore = container.gatewayAccessCodeStore,
+                claudeService = container.claudeService,
                 onBack = { navController.popBackStack() },
                 onDevOptionsClick = { navController.navigate(AromathekRoutes.DEV_OPTIONS) },
             )

@@ -2,13 +2,14 @@ package com.daywalker91.parfumsammlung.ui.addflow
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
-import com.daywalker91.parfumsammlung.data.gemini.GeminiKandidatenErgebnis
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeKandidat
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.ErkennungErgebnis
+import com.daywalker91.parfumsammlung.data.claude.KandidatenErgebnis
+import com.daywalker91.parfumsammlung.data.model.PerfumeKandidat
+import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,9 +39,10 @@ data class ManuelleSucheUiState(
 )
 
 class ManuelleSucheViewModel(
-    private val geminiService: GeminiService,
-    private val apiKeyStore: GeminiApiKeyStore,
+    private val claudeService: ClaudeService,
+    private val apiKeyStore: ClaudeApiKeyStore,
     private val imageStorage: ImageStorage,
+    private val bildDownloader: BildDownloader,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ManuelleSucheUiState())
@@ -71,13 +73,13 @@ class ManuelleSucheViewModel(
             _uiState.update { it.copy(ladeVorgang = true, kandidaten = emptyList(), bestaetigungKandidat = null) }
 
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.KeinApiKey) }
                 return@launch
             }
 
-            when (val ergebnis = geminiService.sucheKandidaten(apiKey, name)) {
-                is GeminiKandidatenErgebnis.Erfolg -> {
+            when (val ergebnis = claudeService.sucheKandidaten(apiKey, name)) {
+                is KandidatenErgebnis.Erfolg -> {
                     // Genau ein Treffer: klassische Ja/Nein-Rückfrage. Mehrere
                     // Treffer: die Auswahl aus der Liste IST die Bestätigung,
                     // kein zusätzlicher Dialog (siehe Konzeptdokument).
@@ -88,13 +90,13 @@ class ManuelleSucheViewModel(
                     }
                 }
 
-                GeminiKandidatenErgebnis.NichtGefunden ->
+                KandidatenErgebnis.NichtGefunden ->
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.NichtGefunden) }
 
-                GeminiKandidatenErgebnis.Offline ->
+                KandidatenErgebnis.Offline ->
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.Offline) }
 
-                is GeminiKandidatenErgebnis.Fehler ->
+                is KandidatenErgebnis.Fehler ->
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.Fehler(ergebnis.nachricht)) }
             }
         }
@@ -106,26 +108,26 @@ class ManuelleSucheViewModel(
             _uiState.update { it.copy(ladeVorgang = true, bestaetigungKandidat = null, kandidaten = emptyList()) }
 
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.KeinApiKey) }
                 return@launch
             }
 
-            when (val ergebnis = geminiService.erkennePerfumNachNameUndMarke(apiKey, kandidat.name, kandidat.marke, ean = null)) {
-                is GeminiErgebnis.Erfolg -> zurEditorUebernehmen(ergebnis.vorschlag)
+            when (val ergebnis = claudeService.erkennePerfumNachNameUndMarke(apiKey, kandidat.name, kandidat.marke, ean = null)) {
+                is ErkennungErgebnis.Erfolg -> zurEditorUebernehmen(ergebnis.vorschlag)
 
                 // Marke+Name sind über die Kandidatenwahl bereits sicher —
                 // ein "nichtGenugDaten" hier heißt nur, dass keine weiteren
                 // Details auffindbar waren. Statt einer Fehlermeldung trotzdem
                 // mit den bekannten Basisdaten zum Editor weiter, wie bei
                 // einer normalen Erkennung mit unvollständigen Zusatzfeldern.
-                GeminiErgebnis.NichtGenugDaten ->
+                ErkennungErgebnis.NichtGenugDaten ->
                     zurEditorUebernehmen(PerfumeSuggestion(name = kandidat.name, marke = kandidat.marke, beschreibung = null, uvp = null, flakongroesse = null, verfuegbareGroessen = null))
 
-                GeminiErgebnis.Offline ->
+                ErkennungErgebnis.Offline ->
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.Offline) }
 
-                is GeminiErgebnis.Fehler ->
+                is ErkennungErgebnis.Fehler ->
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = SucheHinweis.Fehler(ergebnis.nachricht)) }
             }
         }
@@ -133,7 +135,7 @@ class ManuelleSucheViewModel(
 
     private suspend fun zurEditorUebernehmen(vorschlag: PerfumeSuggestion) {
         val bildPfadStock = vorschlag.stockBildUrl?.let { url ->
-            geminiService.ladeBild(url)?.let { bytes -> withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) } }
+            bildDownloader.laden(url)?.let { bytes -> withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) } }
         }
         PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(vorschlag, null, bildPfadStock, null))
         _uiState.update { it.copy(ladeVorgang = false, navigiereZuEditor = true) }

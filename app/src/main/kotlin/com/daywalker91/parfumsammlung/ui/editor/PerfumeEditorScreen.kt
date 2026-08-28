@@ -8,7 +8,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,15 +63,16 @@ import androidx.lifecycle.viewmodel.initializer
 import coil3.compose.AsyncImage
 import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.AktivesBild
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.NotenEingabe
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
 import com.daywalker91.parfumsammlung.data.Saison
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,8 +80,9 @@ fun PerfumeEditorScreen(
     perfumeId: Long?,
     repository: PerfumeRepository,
     imageStorage: ImageStorage,
-    geminiService: GeminiService,
-    apiKeyStore: GeminiApiKeyStore,
+    claudeService: ClaudeService,
+    apiKeyStore: ClaudeApiKeyStore,
+    bildDownloader: BildDownloader,
     onSaved: () -> Unit,
     onBack: () -> Unit,
     initialBildPfadEigen: String? = null,
@@ -92,7 +94,7 @@ fun PerfumeEditorScreen(
         factory = viewModelFactory {
             initializer {
                 PerfumeEditorViewModel(
-                    perfumeId, repository, imageStorage, geminiService, apiKeyStore,
+                    perfumeId, repository, imageStorage, claudeService, apiKeyStore, bildDownloader,
                     initialBildPfadEigen, initialBildPfadStock, vorschlag, initialEan,
                 )
             }
@@ -176,7 +178,7 @@ fun PerfumeEditorScreen(
                 onBildDrehen = viewModel::bildDrehen,
             )
 
-            // Gemini-Antworten sind nicht deterministisch — ein zweiter
+            // Claude-Antworten sind nicht deterministisch — ein zweiter
             // Versuch mit demselben Foto kann andere/vollständigere Daten
             // liefern. Braucht dasselbe eigene Foto wie die ursprüngliche
             // Erkennung, deshalb nur sichtbar wenn eins vorhanden ist.
@@ -225,14 +227,26 @@ fun PerfumeEditorScreen(
             )
 
             Text(stringResource(R.string.feld_saison), style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Bewusst Row+weight statt FlowRow: alle drei Chips bleiben immer in
+            // einer Zeile und teilen sich die Breite gleichmäßig, statt dass der
+            // dritte Chip auf eine zweite Zeile umbricht (Nutzer-Feedback,
+            // gleiche Anpassung wie bei den Saison-Chips in CollectionScreen).
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Saison.entries.forEach { saison ->
                     FilterChip(
                         selected = uiState.saison == saison,
                         onClick = {
                             viewModel.saisonGeaendert(if (uiState.saison == saison) null else saison)
                         },
-                        label = { Text(saison.label()) },
+                        label = {
+                            Text(
+                                text = saison.label(),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }

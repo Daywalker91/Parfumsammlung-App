@@ -1,6 +1,6 @@
-package com.daywalker91.parfumsammlung.data.gemini
+package com.daywalker91.parfumsammlung.data.model
 
-/** Von Gemini aus einem Foto (+ optional EAN als Zusatzkontext) erkannte Parfum-Daten. */
+/** Ergebnis einer KI-Erkennung (Foto oder Namenssuche) — anbieter-neutral, unabhängig davon, welcher KI-Dienst antwortet. */
 data class PerfumeSuggestion(
     val name: String?,
     val marke: String?,
@@ -11,7 +11,7 @@ data class PerfumeSuggestion(
     val notenKopf: List<String> = emptyList(),
     val notenHerz: List<String> = emptyList(),
     val notenBasis: List<String> = emptyList(),
-    /** Per Google Search Grounding gefundenes Produktbild, falls vorhanden. */
+    /** Per Websuche gefundenes Produktbild, falls vorhanden. */
     val stockBildUrl: String? = null,
     /** Eines der drei Saison.label()-Werte als Freitext (siehe Perfume.kt), oder null falls nicht auffindbar. */
     val saison: String? = null,

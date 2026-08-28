@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.daywalker91.parfumsammlung.data.AktivesBild
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.NotenEingabe
 import com.daywalker91.parfumsammlung.data.Perfume
@@ -11,10 +12,10 @@ import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.PerfumeStatus
 import com.daywalker91.parfumsammlung.data.Position
 import com.daywalker91.parfumsammlung.data.Saison
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
-import com.daywalker91.parfumsammlung.data.gemini.PerfumeSuggestion
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.ErkennungErgebnis
+import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -69,13 +70,14 @@ class PerfumeEditorViewModel(
     private val perfumeId: Long?,
     private val repository: PerfumeRepository,
     private val imageStorage: ImageStorage,
-    private val geminiService: GeminiService,
-    private val apiKeyStore: GeminiApiKeyStore,
+    private val claudeService: ClaudeService,
+    private val apiKeyStore: ClaudeApiKeyStore,
+    private val bildDownloader: BildDownloader,
     /** Vom Foto-Hinzufügen-Flow: das für die Erkennung genutzte Foto, schon lokal gespeichert. */
     initialBildPfadEigen: String? = null,
     /** Vom Foto-Hinzufügen-Flow: per Websuche gefundenes, schon lokal gespeichertes Stock-Bild. */
     initialBildPfadStock: String? = null,
-    /** Von Gemini gelieferter Erkennungsvorschlag — nur bei Neuanlage relevant. */
+    /** Von Claude gelieferter Erkennungsvorschlag — nur bei Neuanlage relevant. */
     vorschlag: PerfumeSuggestion? = null,
     /** Vorab gescannter Barcode aus dem Foto-Hinzufügen-Flow. */
     initialEan: String? = null,
@@ -130,7 +132,7 @@ class PerfumeEditorViewModel(
         }
         // Beim Fund über den Foto-Flow (vorschlag != null) parallel nach einem
         // vorhandenen Eintrag mit gleichem Name/Marke suchen, sobald beide
-        // Felder von Gemini geliefert wurden — derselbe Duplikat-Dialog wie
+        // Felder von Claude geliefert wurden — derselbe Duplikat-Dialog wie
         // beim manuellen Speichern, nur schon vor dem ersten Tastendruck.
         if (perfumeId == null && vorschlag?.name != null && vorschlag.marke != null) {
             viewModelScope.launch {
@@ -196,11 +198,11 @@ class PerfumeEditorViewModel(
     }
 
     /**
-     * Fragt Gemini erneut nach Beschreibung/UVP/Größen/Duftpyramide/Stock-Bild
+     * Fragt Claude erneut nach Beschreibung/UVP/Größen/Duftpyramide/Stock-Bild
      * für das aktuelle eigene Foto ab und überschreibt die entsprechenden
      * Felder. Braucht ein eigenes Foto (dasselbe wie beim ursprünglichen
      * Erkennen) — Name/Marke/Notiz/Bewertung/Status bleiben unangetastet.
-     * Grund: Gemini-Antworten sind nicht deterministisch, ein zweiter Versuch
+     * Grund: Claude-Antworten sind nicht deterministisch, ein zweiter Versuch
      * kann andere (oder vollständigere) Daten liefern als der erste.
      */
     fun datenAktualisieren() {
@@ -212,18 +214,18 @@ class PerfumeEditorViewModel(
         }
         viewModelScope.launch {
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.KeinApiKey)
                 return@launch
             }
             _uiState.update { it.copy(aktualisierungLaeuft = true) }
             val bildBytes = withContext(Dispatchers.IO) { File(bildPfad).readBytes() }
-            when (val ergebnis = geminiService.erkennePerfum(apiKey, bildBytes, state.ean.trim().ifBlank { null })) {
-                is GeminiErgebnis.Erfolg -> {
+            when (val ergebnis = claudeService.erkennePerfum(apiKey, bildBytes, state.ean.trim().ifBlank { null })) {
+                is ErkennungErgebnis.Erfolg -> {
                     val vorschlag = ergebnis.vorschlag
                     val stockUrl = vorschlag.stockBildUrl
                     val neuesBildPfadStock = stockUrl?.let { url ->
-                        geminiService.ladeBild(url)?.let { bytes ->
+                        bildDownloader.laden(url)?.let { bytes ->
                             withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) }
                         }
                     }
@@ -258,17 +260,17 @@ class PerfumeEditorViewModel(
                     )
                 }
 
-                GeminiErgebnis.NichtGenugDaten -> {
+                ErkennungErgebnis.NichtGenugDaten -> {
                     _uiState.update { it.copy(aktualisierungLaeuft = false) }
                     _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.NichtGenugDaten)
                 }
 
-                GeminiErgebnis.Offline -> {
+                ErkennungErgebnis.Offline -> {
                     _uiState.update { it.copy(aktualisierungLaeuft = false) }
                     _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.Offline)
                 }
 
-                is GeminiErgebnis.Fehler -> {
+                is ErkennungErgebnis.Fehler -> {
                     _uiState.update { it.copy(aktualisierungLaeuft = false) }
                     _aktualisierungsHinweis.tryEmit(AktualisierungsHinweis.Fehler(ergebnis.nachricht))
                 }

@@ -1,4 +1,4 @@
-package com.daywalker91.parfumsammlung.data.gemini
+package com.daywalker91.parfumsammlung.data.claude
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -6,11 +6,10 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Verschlüsselte lokale Ablage des Gemini-API-Keys (BYOK-Prinzip — jeder
- * Nutzer hinterlegt seinen eigenen Key, siehe Plan, Kapitel „Gemini-
- * Integration — Details"). Kein Key ist fest im APK eingebaut.
+ * Verschlüsselte lokale Ablage des Claude-API-Keys (BYOK-Prinzip, eigener Key
+ * pro Nutzer) — gleiches Muster wie zuvor bei GeminiApiKeyStore.
  */
-class GeminiApiKeyStore(context: Context) {
+class ClaudeApiKeyStore(context: Context) {
 
     private val prefs: SharedPreferences by lazy {
         val masterKey = MasterKey.Builder(context)
@@ -18,7 +17,7 @@ class GeminiApiKeyStore(context: Context) {
             .build()
         EncryptedSharedPreferences.create(
             context,
-            "gemini_secure_prefs",
+            "claude_secure_prefs",
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
@@ -36,6 +35,6 @@ class GeminiApiKeyStore(context: Context) {
     }
 
     private companion object {
-        const val KEY_API_KEY = "gemini_api_key"
+        const val KEY_API_KEY = "claude_api_key"
     }
 }

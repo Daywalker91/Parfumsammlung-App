@@ -1,0 +1,104 @@
+name: Deploy Gateway
+
+# Versionierung analog zur App (siehe Parfum-App_CICD_Plan.md), eigener
+# Tag-Namensraum "gateway-vX.Y" -- kollidiert nicht mit den App-eigenen
+# "vX.Y"-Git-Tags im selben Repo.
+#
+# - Push auf "Gateway" (automatisch, wie "Stable" bei der App): X hoch, Y auf
+#   0 -- Image-Tags "stable", "latest", "<X>.<Y>".
+# - "Experimental" (nur manuell per workflow_dispatch, wie bei der App): Y
+#   hoch -- Image-Tag "unstable" + "<X>.<Y>", ruehrt "stable"/"latest" nicht
+#   an.
+# Zusaetzlich immer der Commit-SHA als Tag, fuer exakte Rueckverfolgbarkeit.
+#
+# Das Deployment-Manifest referenziert weiterhin dauerhaft nur ":latest"
+# (imagePullPolicy: Always) -- die anderen Tags sind fuers manuelle Pinnen/
+# Rollback, aendern am automatischen Rollout nichts.
+#
+# Siehe gateway/README.md für die einmalige ArgoCD-Application-Einrichtung.
+on:
+  push:
+    branches: [Gateway]
+    # Nur Pfade, die den Image-Inhalt tatsächlich beeinflussen — reine
+    # Änderungen an gateway/k8s/ (Manifeste) brauchen kein neues Image, ArgoCD
+    # wendet die unabhängig vom Build an. Vermeidet unnötige Builds (einer
+    # davon hing 6h fest und wurde vom GitHub-Timeout abgebrochen).
+    paths:
+      - "gateway/server.js"
+      - "gateway/src/**"
+      - "gateway/package.json"
+      - "gateway/package-lock.json"
+      - "gateway/Dockerfile"
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    # Nativer arm64-Runner statt amd64 + QEMU-Emulation -- vermeidet einen
+    # live reproduzierten QEMU-Bug ("uncaught target signal 4 (Illegal
+    # instruction)" bei "npm install" unter Emulation), der einen Build-Lauf
+    # 6h lang haengen liess statt sauber fehlzuschlagen. Zusaetzlich ist ein
+    # nativer Build auch schlicht schneller als Emulation.
+    runs-on: ubuntu-24.04-arm
+    # Sicherheitsnetz falls doch mal wieder was haengt: bricht dann nach
+    # spaetestens 20 Minuten sichtbar fehlgeschlagen ab statt 6h stumm zu
+    # haengen.
+    timeout-minutes: 20
+    # Guard wie beim App-Workflow: verhindert einen versehentlichen Build,
+    # falls workflow_dispatch von einem anderen Branch ausgeloest wird.
+    if: github.ref_name == 'Gateway' || github.ref_name == 'Experimental'
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # volle Tag-Historie nötig, um den letzten gateway-vX.Y-Tag zu finden
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version (X.Y scheme) and tags
+        id: version
+        run: |
+          LAST=$(git tag -l 'gateway-v*.*' | sed 's/^gateway-v//' | sort -t. -k1,1n -k2,2n | tail -1)
+          if [ -z "$LAST" ]; then X=0; Y=0; else X=${LAST%%.*}; Y=${LAST##*.}; fi
+
+          IMG="ghcr.io/daywalker91/parfumsammlung-gateway"
+          if [ "${{ github.ref_name }}" = "Gateway" ]; then
+            X=$((X + 1)); Y=0
+            TAGS="$IMG:${{ github.sha }}
+          $IMG:$X.$Y
+          $IMG:stable
+          $IMG:latest"
+          else
+            Y=$((Y + 1))
+            TAGS="$IMG:${{ github.sha }}
+          $IMG:$X.$Y
+          $IMG:unstable"
+          fi
+
+          echo "gittag=gateway-v$X.$Y" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<GATEWAYTAGS"
+            echo "$TAGS"
+            echo "GATEWAYTAGS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build & push image (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: gateway
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.version.outputs.tags }}
+
+      - name: Git-Tag setzen (Versionsverfolgung, wie bei der App)
+        run: |
+          git tag "${{ steps.version.outputs.gittag }}"
+          git push origin "${{ steps.version.outputs.gittag }}"

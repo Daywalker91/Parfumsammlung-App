@@ -1,5 +1,9 @@
 package com.daywalker91.parfumsammlung.ui.settings
 
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,25 +49,45 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.initializer
 import com.daywalker91.parfumsammlung.BuildConfig
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
+import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.GatewayStatus
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private const val CLAUDE_CONSOLE_URL = "https://console.anthropic.com/settings/keys"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    apiKeyStore: GeminiApiKeyStore,
+    apiKeyStore: ClaudeApiKeyStore,
     backupManager: BackupManager,
     sortPreferenceStore: SortPreferenceStore,
+    usageCounterStore: UsageCounterStore,
+    gatewayAccessCodeStore: GatewayAccessCodeStore,
+    claudeService: ClaudeService,
     onBack: () -> Unit,
     onDevOptionsClick: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = viewModel(
-        factory = viewModelFactory { initializer { SettingsViewModel(apiKeyStore, backupManager, sortPreferenceStore) } },
+        factory = viewModelFactory {
+            initializer {
+                SettingsViewModel(
+                    apiKeyStore,
+                    backupManager,
+                    sortPreferenceStore,
+                    usageCounterStore,
+                    gatewayAccessCodeStore,
+                    claudeService,
+                )
+            }
+        },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -101,17 +125,77 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.gemini_key_erklaerung), style = MaterialTheme.typography.bodyMedium)
+            // Nur eines der beiden Felder ergibt gleichzeitig Sinn (ClaudeService nutzt
+            // ohnehin nur den eigenen Key, falls vorhanden — sonst den Lizenzschlüssel).
+            // Ein bereits befülltes Feld bleibt sichtbar (zum Ansehen/Löschen), das jeweils
+            // andere blendet sich aus, sobald hier etwas eingetragen ist. Sind (z. B. aus der
+            // Zeit vor dieser Änderung) ausnahmsweise beide befüllt, werden bewusst beide
+            // gezeigt statt beide zu verstecken — kein Zustand ohne Ausweg.
+            val apiKeySichtbar = uiState.apiKey.isNotBlank() || uiState.lizenzschluessel.isBlank()
+            val lizenzSichtbar = uiState.lizenzschluessel.isNotBlank() || uiState.apiKey.isBlank()
 
-            OutlinedTextField(
-                value = uiState.apiKey,
-                onValueChange = viewModel::apiKeyGeaendert,
-                label = { Text(stringResource(R.string.gemini_api_key)) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (apiKeySichtbar) {
+                Text(stringResource(R.string.claude_key_erklaerung), style = MaterialTheme.typography.bodyMedium)
+
+                OutlinedTextField(
+                    value = uiState.apiKey,
+                    onValueChange = viewModel::apiKeyGeaendert,
+                    label = { Text(stringResource(R.string.claude_api_key)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Komfort statt Automatisierung: eine echte Console-Auto-Provisionierung
+                // ist nicht möglich (Anthropic sperrt OAuth-Flows serverseitig auf Claude
+                // Code/Claude.ai, siehe Plan) — hier nur Browser-Shortcut + Zwischenablage.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CLAUDE_CONSOLE_URL)))
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.claude_console_oeffnen)) }
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            val text = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+                            if (!text.isNullOrBlank()) viewModel.apiKeyGeaendert(text.trim())
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.aus_zwischenablage_einfuegen)) }
+                }
+            }
+
+            if (lizenzSichtbar) {
+                // Alternative zum eigenen Key: individueller Lizenzschlüssel (Lizenz-Gateway-Plan) —
+                // greift nur, wenn oben kein eigener Key hinterlegt ist (ClaudeService entscheidet).
+                OutlinedTextField(
+                    value = uiState.lizenzschluessel,
+                    onValueChange = viewModel::lizenzschluesselGeaendert,
+                    label = { Text(stringResource(R.string.lizenzschluessel_feld)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(stringResource(R.string.lizenzschluessel_erklaerung), style = MaterialTheme.typography.bodySmall)
+
+                when (val status = uiState.gatewayStatus) {
+                    is GatewayStatus.Verfuegbar -> Text(
+                        if (status.verbleibendHeute != null) {
+                            stringResource(R.string.gateway_status_verfuegbar, status.verbleibendHeute)
+                        } else {
+                            stringResource(R.string.gateway_status_unlimitiert)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    GatewayStatus.Gesperrt -> Text(
+                        stringResource(R.string.gateway_status_gesperrt),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    GatewayStatus.KeinGateway -> Unit
+                }
+            }
 
             Button(onClick = viewModel::speichern, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.speichern))
@@ -125,6 +209,67 @@ fun SettingsScreen(
                 text = stringResource(R.string.datenschutz_hinweis_text),
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(stringResource(R.string.verbrauch_titel), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(
+                    R.string.verbrauch_diesen_monat,
+                    formatToken(uiState.verbrauch.tokenDiesenMonat),
+                    uiState.verbrauch.anfragenDiesenMonat,
+                    formatEuro(uiState.verbrauch.kostenDiesenMonatEuro),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                stringResource(
+                    R.string.verbrauch_seit_zahlung,
+                    formatToken(uiState.verbrauch.tokenSeitZahlung),
+                    uiState.verbrauch.anfragenSeitZahlung,
+                    formatEuro(uiState.verbrauch.kostenSeitZahlungEuro),
+                ) + if (uiState.verbrauch.letzteZahlungMillis > 0) {
+                    stringResource(
+                        R.string.verbrauch_seit_datum,
+                        SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).format(Date(uiState.verbrauch.letzteZahlungMillis)),
+                    )
+                } else {
+                    ""
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(stringResource(R.string.verbrauch_schaetzung_hinweis), style = MaterialTheme.typography.bodySmall)
+
+            // Kein Backend, keine automatische Zahlungsbestätigung möglich — rein
+            // manueller/Ehrlichkeits-Ablauf. Link kommt zentral vom Gateway (über
+            // /admin gepflegt, siehe Plan) — deshalb nur sichtbar, wenn gerade per
+            // Lizenzschlüssel gelaufen wird (bei eigenem API-Key zahlt man ja direkt
+            // an Anthropic, da ergibt weder Spenden noch "beglichen" Sinn dafür).
+            // Ist der Spenden-Button da, übernimmt er direkt auch den Reset (ein
+            // Tap statt zwei) — sonst (BYOK oder noch kein Spenden-Link hinterlegt)
+            // bleibt der eigenständige "Verbrauch beglichen"-Button als einziger Weg,
+            // den Zähler zurückzusetzen.
+            val spendenLink = (uiState.gatewayStatus as? GatewayStatus.Verfuegbar)?.spendenLink
+            if (spendenLink != null) {
+                Text(stringResource(R.string.spenden_hinweis), style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = {
+                        val betrag = uiState.verbrauch.kostenSeitZahlungEuro
+                        val ziel = if (betrag > 0) {
+                            "${spendenLink.trimEnd('/')}/${String.format(Locale.US, "%.2f", betrag)}EUR"
+                        } else {
+                            spendenLink
+                        }
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ziel)))
+                        viewModel.verbrauchBeglichen()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.spenden_button)) }
+            } else {
+                OutlinedButton(onClick = viewModel::verbrauchBeglichen, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.verbrauch_beglichen))
+                }
+            }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -195,6 +340,10 @@ fun SettingsScreen(
         }
     }
 }
+
+private fun formatToken(token: Long): String = String.format(Locale.GERMANY, "%,d", token)
+
+private fun formatEuro(euro: Double): String = String.format(Locale.GERMANY, "%.2f €", euro)
 
 /** Nicht-@Composable, da innerhalb eines LaunchedEffect (Coroutine) aufgerufen —
  * dort ist stringResource() nicht erlaubt, context.getString() aber schon. */

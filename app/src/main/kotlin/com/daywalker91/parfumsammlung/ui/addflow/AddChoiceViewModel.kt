@@ -3,11 +3,17 @@ package com.daywalker91.parfumsammlung.ui.addflow
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.daywalker91.parfumsammlung.R
+import com.daywalker91.parfumsammlung.data.BildDownloader
 import com.daywalker91.parfumsammlung.data.ImageStorage
-import com.daywalker91.parfumsammlung.data.gemini.GeminiApiKeyStore
-import com.daywalker91.parfumsammlung.data.gemini.GeminiErgebnis
-import com.daywalker91.parfumsammlung.data.gemini.GeminiService
+import com.daywalker91.parfumsammlung.data.batch.PerfumeBatchWorker
+import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
+import com.daywalker91.parfumsammlung.data.claude.ClaudeService
+import com.daywalker91.parfumsammlung.data.claude.ErkennungErgebnis
 import com.daywalker91.parfumsammlung.di.PerfumeSuggestionBridge
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -35,12 +41,15 @@ data class AddChoiceUiState(
     val ladeVorgang: Boolean = false,
     val hinweis: AddHinweis? = null,
     val navigiereZuEditor: Boolean = false,
+    val navigiereZuBatchReview: Boolean = false,
 )
 
 class AddChoiceViewModel(
     private val imageStorage: ImageStorage,
-    private val geminiService: GeminiService,
-    private val apiKeyStore: GeminiApiKeyStore,
+    private val claudeService: ClaudeService,
+    private val apiKeyStore: ClaudeApiKeyStore,
+    private val bildDownloader: BildDownloader,
+    private val workManager: WorkManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddChoiceUiState())
@@ -52,14 +61,14 @@ class AddChoiceViewModel(
 
     // Einmaliger Diagnose-Hinweis zum Stock-Bild (kein blockierender Dialog wie
     // `hinweis`, da die Haupterkennung ja trotzdem erfolgreich war) — hilft zu
-    // unterscheiden, ob Gemini schlicht keine Bild-URL geliefert hat oder ob der
+    // unterscheiden, ob Claude schlicht keine Bild-URL geliefert hat oder ob der
     // Download einer gelieferten URL fehlgeschlagen ist (z. B. Hotlink-Schutz).
     private val _stockBildHinweis = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     val stockBildHinweis: SharedFlow<Int> = _stockBildHinweis.asSharedFlow()
 
     fun eanErkannt(ean: String) = _uiState.update { it.copy(ean = ean) }
 
-    /** Bricht einen laufenden Foto-Erkennungsvorgang ab (kein Timeout mehr, siehe GeminiService). */
+    /** Bricht einen laufenden Foto-Erkennungsvorgang ab (kein Timeout mehr, siehe ClaudeService). */
     fun abbrechen() {
         erkennungsJob?.cancel()
         _uiState.update { it.copy(ladeVorgang = false) }
@@ -68,6 +77,37 @@ class AddChoiceViewModel(
     fun hinweisSchliessen() = _uiState.update { it.copy(hinweis = null) }
 
     fun navigationErledigt() = _uiState.update { it.copy(navigiereZuEditor = false) }
+
+    fun batchNavigationErledigt() = _uiState.update { it.copy(navigiereZuBatchReview = false) }
+
+    /**
+     * Automatische Weiche statt manueller Batch/Einzel-Auswahl: genau ein
+     * Foto läuft über den bestehenden, unveränderten Einzel-Flow;
+     * mehrere Fotos starten den Hintergrund-Batch (PerfumeBatchWorker) und
+     * navigieren zur Review-Übersicht statt direkt zum Editor.
+     */
+    fun galerieAuswahlVerarbeitet(uris: List<Uri>) {
+        if (uris.size <= 1) {
+            uris.firstOrNull()?.let(::fotoVerarbeiten)
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(ladeVorgang = true) }
+            // Bilder lokal kopieren, bevor der Worker startet — content://-URIs
+            // überleben keinen Prozess-Tod, ein Dateipfad im internen
+            // Speicher schon (gleiches Muster wie beim früheren Vergleichs-Tool).
+            val pfade = uris.mapNotNull { uri -> withContext(Dispatchers.IO) { imageStorage.speichereVonUri(uri) } }
+            if (pfade.isEmpty()) {
+                _uiState.update { it.copy(ladeVorgang = false) }
+                return@launch
+            }
+            val request = OneTimeWorkRequestBuilder<PerfumeBatchWorker>()
+                .setInputData(workDataOf(PerfumeBatchWorker.KEY_BILD_PFADE to pfade.toTypedArray()))
+                .build()
+            workManager.enqueueUniqueWork(PerfumeBatchWorker.UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+            _uiState.update { it.copy(ladeVorgang = false, navigiereZuBatchReview = true) }
+        }
+    }
 
     /** Direkt manuell, ganz ohne Foto. */
     fun manuellOhneFoto() {
@@ -85,7 +125,7 @@ class AddChoiceViewModel(
             val bildPfadEigen = withContext(Dispatchers.IO) { imageStorage.speichereVonUri(uri) }
 
             val apiKey = apiKeyStore.getKey()
-            if (apiKey == null) {
+            if (!claudeService.kannAnfragenSenden(apiKey)) {
                 PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                 _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.KeinApiKey) }
                 return@launch
@@ -97,11 +137,11 @@ class AddChoiceViewModel(
                 return@launch
             }
 
-            when (val ergebnis = geminiService.erkennePerfum(apiKey, bildBytes, _uiState.value.ean)) {
-                is GeminiErgebnis.Erfolg -> {
+            when (val ergebnis = claudeService.erkennePerfum(apiKey, bildBytes, _uiState.value.ean)) {
+                is ErkennungErgebnis.Erfolg -> {
                     val stockUrl = ergebnis.vorschlag.stockBildUrl
                     val bildPfadStock = stockUrl?.let { url ->
-                        geminiService.ladeBild(url)?.let { bytes ->
+                        bildDownloader.laden(url)?.let { bytes ->
                             withContext(Dispatchers.IO) { imageStorage.speichereVonBytes(bytes) }
                         }
                     }
@@ -115,17 +155,17 @@ class AddChoiceViewModel(
                     _uiState.update { it.copy(ladeVorgang = false, navigiereZuEditor = true) }
                 }
 
-                GeminiErgebnis.NichtGenugDaten -> {
+                ErkennungErgebnis.NichtGenugDaten -> {
                     PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.NichtGenugDaten) }
                 }
 
-                GeminiErgebnis.Offline -> {
+                ErkennungErgebnis.Offline -> {
                     PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.Offline) }
                 }
 
-                is GeminiErgebnis.Fehler -> {
+                is ErkennungErgebnis.Fehler -> {
                     PerfumeSuggestionBridge.setzen(PerfumeSuggestionBridge.Payload(null, bildPfadEigen, null, _uiState.value.ean))
                     _uiState.update { it.copy(ladeVorgang = false, hinweis = AddHinweis.Fehler(ergebnis.nachricht)) }
                 }

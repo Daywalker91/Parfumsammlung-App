@@ -1,8 +1,15 @@
-package com.daywalker91.parfumsammlung.data.gemini
+package com.daywalker91.parfumsammlung.data.claude
 
 import android.util.Base64
+import com.daywalker91.parfumsammlung.BuildConfig
+import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
+import com.daywalker91.parfumsammlung.data.UsageCounterStore
+import com.daywalker91.parfumsammlung.data.model.PerfumeKandidat
+import com.daywalker91.parfumsammlung.data.model.PerfumeSuggestion
+import com.daywalker91.parfumsammlung.data.model.ShopAngebot
 import java.io.IOException
 import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -16,138 +23,161 @@ import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Ergebnis eines Erkennungsversuchs — bewusst kein einfaches Result<T>, da die
- * App zwischen "kein Netz", "Gemini fand nichts" und echten Fehlern unterscheiden
- * muss (siehe Plan, Kapitel "Offline-Verhalten" / "Unzureichende Erkennung"). */
-sealed interface GeminiErgebnis {
-    data class Erfolg(val vorschlag: PerfumeSuggestion) : GeminiErgebnis
-    data object NichtGenugDaten : GeminiErgebnis
-    data object Offline : GeminiErgebnis
-    data class Fehler(val nachricht: String) : GeminiErgebnis
+/** Ergebnis eines Erkennungsversuchs (Foto oder Namens-Vollabruf) — siehe frühere GeminiErgebnis. */
+sealed interface ErkennungErgebnis {
+    data class Erfolg(val vorschlag: PerfumeSuggestion) : ErkennungErgebnis
+    data object NichtGenugDaten : ErkennungErgebnis
+    data object Offline : ErkennungErgebnis
+    data class Fehler(val nachricht: String) : ErkennungErgebnis
 }
 
 /** Ergebnis der Namens-Kandidatensuche (Phase 8b) — noch keine vollen Duftdaten, nur zur Auswahl/Bestätigung. */
-sealed interface GeminiKandidatenErgebnis {
-    data class Erfolg(val kandidaten: List<PerfumeKandidat>) : GeminiKandidatenErgebnis
-    data object NichtGefunden : GeminiKandidatenErgebnis
-    data object Offline : GeminiKandidatenErgebnis
-    data class Fehler(val nachricht: String) : GeminiKandidatenErgebnis
+sealed interface KandidatenErgebnis {
+    data class Erfolg(val kandidaten: List<PerfumeKandidat>) : KandidatenErgebnis
+    data object NichtGefunden : KandidatenErgebnis
+    data object Offline : KandidatenErgebnis
+    data class Fehler(val nachricht: String) : KandidatenErgebnis
 }
 
 /** Ergebnis der Shop-Suche (Phase 8c) — reine Momentaufnahme, wird nirgends persistiert. */
-sealed interface GeminiShopSucheErgebnis {
-    data class Erfolg(val angebote: List<ShopAngebot>) : GeminiShopSucheErgebnis
-    data object NichtGefunden : GeminiShopSucheErgebnis
-    data object Offline : GeminiShopSucheErgebnis
-    data class Fehler(val nachricht: String) : GeminiShopSucheErgebnis
+sealed interface ShopSucheErgebnis {
+    data class Erfolg(val angebote: List<ShopAngebot>) : ShopSucheErgebnis
+    data object NichtGefunden : ShopSucheErgebnis
+    data object Offline : ShopSucheErgebnis
+    data class Fehler(val nachricht: String) : ShopSucheErgebnis
+}
+
+/** Zustand des geteilten Gateway-Zugangs (Lizenzschlüssel) — reine Anzeige in den Settings, kein Cache. */
+sealed interface GatewayStatus {
+    /**
+     * [verbleibendHeute] ist null bei unlimitiertem Tageslimit (am Gateway leer
+     * gelassen). [spendenLink] kommt zentral vom Gateway (über /admin gepflegt)
+     * — die App hängt nur noch den Betrag an.
+     */
+    data class Verfuegbar(val verbleibendHeute: Int?, val spendenLink: String? = null) : GatewayStatus
+    data object Gesperrt : GatewayStatus
+    /** Kein Gateway in diesem Build (Dev-Build) ODER kein Lizenzschlüssel hinterlegt. */
+    data object KeinGateway : GatewayStatus
 }
 
 /**
- * Direkter REST-Client für die Gemini-API — bewusst kein Google-AI-SDK, um
- * keine weitere Dependency-Versionsfront neben AGP/Kotlin/Compose aufzumachen
- * (siehe app/build.gradle.kts) und um volle Kontrolle über Prompt/Parsing zu
- * behalten.
+ * Direkter REST-Client für die Anthropic-Messages-API — bewusst kein
+ * offizielles SDK (gleiche Begründung wie zuvor bei GeminiService: keine
+ * weitere Dependency-Versionsfront neben AGP/Kotlin/Compose, volle Kontrolle
+ * über Prompt/Parsing). Alleiniges KI-Backend der App seit dem Umstieg von
+ * Gemini (Vergleichstest auf Branch "KI-Vergleich": Claude Haiku 4.5 bei
+ * 94–100% Erfolgsquote durchweg in 10–25s, bestes Preis-Leistungs-Verhältnis).
  *
- * Structured Output (responseSchema) wird absichtlich NICHT zusammen mit dem
- * google_search-Tool genutzt — die Kombination ist je nach API-/Modellversion
- * uneinheitlich dokumentiert. Stattdessen wird Gemini per Prompt zu reinem
- * JSON angewiesen und die Antwort robust geparst (Markdown-Codefences etc.
- * werden toleriert).
+ * Modell ist bewusst rein intern (kein Parameter der öffentlichen Methoden,
+ * analog zu GeminiService.MODELL) — die App unterstützt nur noch genau ein
+ * Modell, die Mehrfach-Modell-Fähigkeit war nur für den KI-Vergleich nötig.
  */
-class GeminiService(
-    // Bewusst KEIN Timeout mehr (siehe callTimeout(0, ...) unten): ein
-    // Grounded-Request (Bildanalyse + echte Websuche, siehe baueRequestBody)
-    // kann je nach Google-Antwortzeit sehr unterschiedlich lange dauern —
-    // statt eines festen Zeitlimits, das mal zu kurz und mal unnötig lang
-    // ist, kann der Nutzer den Vorgang stattdessen manuell abbrechen (siehe
-    // AddChoiceViewModel.abbrechen). Damit das Abbrechen den Netzwerk-Call
-    // auch wirklich sofort stoppt (Coroutine-Abbruch ist kooperativ, ein
-    // blockierender execute()-Call würde ihn ignorieren), läuft die Anfrage
-    // über ausfuehrenAbbrechbar() statt über ein simples execute().
-    //
-    // Wichtig: callTimeout(0) allein reicht NICHT — OkHttp hat daneben noch
-    // getrennte connect-/write-/read-Timeouts, die ohne explizite Angabe auf
-    // den Default von 10s stehen. Der Read-Timeout (Lücke zwischen Antwort-
-    // Paketen, z. B. während Gemini "nachdenkt", bevor die Antwort zu
-    // streamen beginnt) hat genau deshalb weiterhin zugeschlagen — daher
-    // hier alle vier einzeln auf 0 (unbegrenzt).
+class ClaudeService(
+    private val usageCounterStore: UsageCounterStore,
+    // Lizenz-Gateway (siehe Plan "Lizenz-Gateway für geteilten Claude-API-
+    // Zugang") — greift nur, wenn kein eigener Key vorliegt. gatewayBaseUrl
+    // ist reine Server-Adresse, kein Geheimnis, darf fest einkompiliert sein
+    // (Default leer in lokalen Dev-Builds ohne -P-Property, Verhalten dort
+    // unverändert: nur eigener Key funktioniert). Der Lizenzschlüssel selbst
+    // ist NICHT einkompiliert, sondern kommt ausschließlich vom Nutzer
+    // eingetragen aus gatewayAccessCodeStore.
+    private val gatewayAccessCodeStore: GatewayAccessCodeStore,
+    private val gatewayBaseUrl: String = BuildConfig.GATEWAY_BASE_URL,
+    // Bewusst KEIN Timeout (siehe GeminiService für die ausführliche
+    // Begründung) — ein Grounded-Request kann unterschiedlich lange dauern,
+    // der Nutzer bricht im Einzel-Flow stattdessen manuell ab. Nur der
+    // Batch-Import (PerfumeBatchWorker) legt sich selbst einen Timeout auf,
+    // weil dort kein manuelles Abbrechen pro Bild möglich ist.
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
-        .writeTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
-        .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
-        .callTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .connectTimeout(0, TimeUnit.MILLISECONDS)
+        .writeTimeout(0, TimeUnit.MILLISECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
         .build(),
 ) {
 
-    suspend fun erkennePerfum(apiKey: String, bildBytes: ByteArray, ean: String?): GeminiErgebnis =
-        geminiAnfrage(
+    /** Ob überhaupt ein Weg existiert, eine Anfrage zu senden — eigener Key ODER Gateway-Zugang. */
+    fun kannAnfragenSenden(apiKey: String?): Boolean =
+        apiKey != null || (gatewayBaseUrl.isNotBlank() && gatewayAccessCodeStore.getCode() != null)
+
+    /** Status des geteilten Zugangs für die Settings-Anzeige — kein Anthropic-Aufruf, kein Kostenrisiko. */
+    suspend fun gatewayStatus(): GatewayStatus {
+        if (gatewayBaseUrl.isBlank()) return GatewayStatus.KeinGateway
+        val code = gatewayAccessCodeStore.getCode() ?: return GatewayStatus.KeinGateway
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("${gatewayBaseUrl.trimEnd('/')}/v1/status")
+                    .header("X-Access-Code", code)
+                    .build()
+                ausfuehrenAbbrechbar(request).use { response ->
+                    if (!response.isSuccessful) return@withContext GatewayStatus.Gesperrt
+                    val json = JSONObject(response.body.string())
+                    if (json.optBoolean("gueltig", false)) {
+                        GatewayStatus.Verfuegbar(
+                            // null = unlimitiertes Tageslimit (siehe /admin, Feld leer lassen) —
+                            // der Gateway lässt "verbleibendHeute" dann ganz weg.
+                            verbleibendHeute = if (json.optBoolean("unlimitiert", false)) {
+                                null
+                            } else {
+                                json.optInt("verbleibendHeute", 0)
+                            },
+                            spendenLink = json.optString("spendenLink").takeIf { it.isNotBlank() },
+                        )
+                    } else {
+                        GatewayStatus.Gesperrt
+                    }
+                }
+            } catch (e: IOException) {
+                GatewayStatus.KeinGateway
+            }
+        }
+    }
+
+    suspend fun erkennePerfum(apiKey: String?, bildBytes: ByteArray, ean: String?): ErkennungErgebnis =
+        claudeAnfrage(
             apiKey = apiKey,
-            requestJson = baueRequestBody(bildBytes, ean),
-            offline = GeminiErgebnis.Offline,
-            fehler = { GeminiErgebnis.Fehler(it) },
-            keineAntwort = GeminiErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            requestJson = baueBildRequestBody(bildBytes, ean),
+            offline = ErkennungErgebnis.Offline,
+            fehler = { ErkennungErgebnis.Fehler(it) },
+            keineAntwort = ErkennungErgebnis.Fehler("Keine verwertbare Antwort von Claude erhalten."),
             parse = ::parseSuggestion,
         )
 
     /** Kandidatensuche (Phase 8b, Schritt 1) — nur der Name ist bekannt, kein Foto. */
-    suspend fun sucheKandidaten(apiKey: String, name: String): GeminiKandidatenErgebnis =
-        geminiAnfrage(
+    suspend fun sucheKandidaten(apiKey: String?, name: String): KandidatenErgebnis =
+        claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueTextRequestBody(promptKandidaten(name)),
-            offline = GeminiKandidatenErgebnis.Offline,
-            fehler = { GeminiKandidatenErgebnis.Fehler(it) },
-            keineAntwort = GeminiKandidatenErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            offline = KandidatenErgebnis.Offline,
+            fehler = { KandidatenErgebnis.Fehler(it) },
+            keineAntwort = KandidatenErgebnis.Fehler("Keine verwertbare Antwort von Claude erhalten."),
             parse = ::parseKandidaten,
         )
 
     /** Volle Datenübernahme (Phase 8b, Schritt 2) — Marke+Name stehen nach der Kandidatenwahl schon fest. */
-    suspend fun erkennePerfumNachNameUndMarke(apiKey: String, name: String, marke: String, ean: String?): GeminiErgebnis =
-        geminiAnfrage(
+    suspend fun erkennePerfumNachNameUndMarke(apiKey: String?, name: String, marke: String, ean: String?): ErkennungErgebnis =
+        claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueTextRequestBody(promptNamensSuche(name, marke, ean)),
-            offline = GeminiErgebnis.Offline,
-            fehler = { GeminiErgebnis.Fehler(it) },
-            keineAntwort = GeminiErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            offline = ErkennungErgebnis.Offline,
+            fehler = { ErkennungErgebnis.Fehler(it) },
+            keineAntwort = ErkennungErgebnis.Fehler("Keine verwertbare Antwort von Claude erhalten."),
             parse = ::parseSuggestion,
         )
 
     /** Shop-Suche (Phase 8c) — reine Momentaufnahme zum Abrufzeitpunkt, wird nicht persistiert. */
-    suspend fun sucheShops(apiKey: String, name: String, marke: String): GeminiShopSucheErgebnis =
-        geminiAnfrage(
+    suspend fun sucheShops(apiKey: String?, name: String, marke: String): ShopSucheErgebnis =
+        claudeAnfrage(
             apiKey = apiKey,
             requestJson = baueTextRequestBody(promptShopSuche(name, marke)),
-            offline = GeminiShopSucheErgebnis.Offline,
-            fehler = { GeminiShopSucheErgebnis.Fehler(it) },
-            keineAntwort = GeminiShopSucheErgebnis.Fehler("Keine verwertbare Antwort von Gemini erhalten."),
+            offline = ShopSucheErgebnis.Offline,
+            fehler = { ShopSucheErgebnis.Fehler(it) },
+            keineAntwort = ShopSucheErgebnis.Fehler("Keine verwertbare Antwort von Claude erhalten."),
             parse = ::parseShopAngebote,
         )
 
-    /** Lädt ein per Websuche gefundenes Stock-Bild herunter (für ImageStorage.speichereVonBytes). */
-    suspend fun ladeBild(url: String): ByteArray? = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url(url)
-                // Manche Bildhoster/CDNs blocken Downloads ohne "echten"
-                // Browser-User-Agent als Hotlink-Schutz — OkHttps Default
-                // ("okhttp/x.x") fällt darunter, ein Stock-Bild könnte sonst
-                // trotz gültiger URL nie ankommen.
-                .header("User-Agent", USER_AGENT)
-                .build()
-            ausfuehrenAbbrechbar(request).use { response ->
-                if (!response.isSuccessful) return@withContext null
-                response.body.bytes()
-            }
-        } catch (e: IOException) {
-            null
-        }
-    }
-
-    /**
-     * Wie `httpClient.newCall(request).execute()`, aber echt abbrechbar: wird
-     * die aufrufende Coroutine abgebrochen (z. B. weil der Nutzer auf
-     * "Abbrechen" tippt), wird über `invokeOnCancellation` der zugehörige
-     * OkHttp-Call sofort gecancelt statt weiter im Hintergrund zu laufen.
-     */
+    /** Wie GeminiService.ausfuehrenAbbrechbar — echt abbrechbar statt blockierendem execute(). */
     private suspend fun ausfuehrenAbbrechbar(request: Request): Response =
         suspendCancellableCoroutine { fortsetzung ->
             val call = httpClient.newCall(request)
@@ -164,33 +194,58 @@ class GeminiService(
         }
 
     /**
-     * Gemeinsames Grundgerüst für alle Gemini-Requests dieser Klasse (Foto-
-     * Erkennung, Namens-Kandidatensuche, Namens-Vollabruf, Shop-Suche):
-     * Request absetzen, HTTP-/Offline-Fehler einheitlich behandeln, bei Erfolg
-     * den Antworttext extrahieren und an die jeweilige `parse`-Funktion
-     * übergeben. Nur Request-Aufbau und Ergebnis-Parsing unterscheiden sich
-     * zwischen den Aufrufern, daher generisch über den Ergebnistyp [T].
+     * Gemeinsames Grundgerüst für alle Claude-Requests dieser Klasse — analog
+     * zu GeminiService.geminiAnfrage: Request absetzen, HTTP-/Offline-Fehler
+     * einheitlich behandeln, Verbrauchszähler aktualisieren, bei Erfolg den
+     * Antworttext extrahieren (inkl. <cite>-Tag-Bereinigung) und an die
+     * jeweilige parse-Funktion übergeben.
      */
-    private suspend fun <T> geminiAnfrage(
-        apiKey: String,
+    private suspend fun <T> claudeAnfrage(
+        apiKey: String?,
         requestJson: JSONObject,
         offline: T,
         fehler: (String) -> T,
         keineAntwort: T,
         parse: (String) -> T,
     ): T = withContext(Dispatchers.IO) {
+        // Routing: eigener Key -> direkt Anthropic (heutiges Verhalten). Kein
+        // eigener Key -> Lizenzschlüssel aus dem Gateway-Store, falls
+        // vorhanden UND ein Gateway in diesem Build konfiguriert ist. Fehlen
+        // beide, hätte kannAnfragenSenden() das schon vorher verhindern
+        // sollen — dieser Zweig ist nur ein Sicherheitsnetz.
+        val zugangscode = if (apiKey == null) gatewayAccessCodeStore.getCode() else null
+        if (apiKey == null && (zugangscode == null || gatewayBaseUrl.isBlank())) {
+            return@withContext fehler("Kein eigener Claude-API-Key und kein Lizenzschlüssel hinterlegt.")
+        }
         try {
-            val request = Request.Builder()
-                .url("$ENDPOINT_BASIS/$MODELL:generateContent?key=$apiKey")
+            val requestBuilder = Request.Builder()
+                .header("anthropic-version", ANTHROPIC_VERSION)
                 .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
+            if (apiKey != null) {
+                requestBuilder.url(ENDPOINT).header("x-api-key", apiKey)
+            } else {
+                requestBuilder.url("${gatewayBaseUrl.trimEnd('/')}/v1/messages").header("X-Access-Code", zugangscode!!)
+            }
+            val request = requestBuilder.build()
 
             ausfuehrenAbbrechbar(request).use { response ->
                 val rohantwort = response.body.string()
                 if (!response.isSuccessful) {
-                    return@withContext fehler("Gemini-API-Fehler (${response.code}): ${fehlermeldungAus(rohantwort)}")
+                    return@withContext fehler("Claude-API-Fehler (${response.code}): ${fehlermeldungAus(rohantwort)}")
                 }
-                val text = extrahiereText(rohantwort) ?: return@withContext keineAntwort
+                val json = JSONObject(rohantwort)
+                // usage ist auch bei einer Ablehnung (stop_reason "refusal") oder
+                // nicht auswertbarer Antwort vorhanden — Anthropic berechnet die
+                // verbrauchten Token unabhängig vom Inhalt der Antwort.
+                json.optJSONObject("usage")?.let {
+                    usageCounterStore.hinzufuegen(it.optInt("input_tokens"), it.optInt("output_tokens"))
+                }
+                // Sicherheits-Klassifizierer können eine Anfrage ablehnen (stop_reason
+                // "refusal") — dann ist der Content nicht auswertbar, vorher abfangen.
+                if (json.optString("stop_reason") == "refusal") {
+                    return@withContext fehler("Claude hat die Anfrage abgelehnt.")
+                }
+                val text = extrahiereText(json) ?: return@withContext keineAntwort
                 parse(text)
             }
         } catch (e: UnknownHostException) {
@@ -200,86 +255,91 @@ class GeminiService(
         }
     }
 
-    /** Text-only-Variante von [baueRequestBody] — für Anfragen ohne Foto (Namenssuche, Shop-Suche). */
-    private fun baueTextRequestBody(prompt: String): JSONObject {
-        val parts = JSONArray().put(JSONObject().put("text", prompt))
-        val contents = JSONArray().put(JSONObject().put("role", "user").put("parts", parts))
-        val tools = JSONArray().put(JSONObject().put("google_search", JSONObject()))
-        val generationConfig = JSONObject().put("temperature", 0.1)
-        return JSONObject()
-            .put("contents", contents)
-            .put("tools", tools)
-            .put("generationConfig", generationConfig)
-    }
-
-    private fun baueRequestBody(bildBytes: ByteArray, ean: String?): JSONObject {
+    private fun baueBildRequestBody(bildBytes: ByteArray, ean: String?): JSONObject {
         val base64Bild = Base64.encodeToString(bildBytes, Base64.NO_WRAP)
         val eanHinweis = if (!ean.isNullOrBlank()) {
             "\nDer Barcode (EAN) des Produkts lautet: $ean — nutze das als zusätzlichen Hinweis zur Identifikation."
         } else {
             ""
         }
-
-        val parts = JSONArray()
-            .put(JSONObject().put("text", PROMPT_VORLAGE + eanHinweis))
+        val content = JSONArray()
             .put(
-                JSONObject().put(
-                    "inline_data",
-                    JSONObject().put("mime_type", "image/jpeg").put("data", base64Bild),
+                JSONObject().put("type", "image").put(
+                    "source",
+                    JSONObject().put("type", "base64").put("media_type", "image/jpeg").put("data", base64Bild),
                 ),
             )
+            .put(JSONObject().put("type", "text").put("text", PROMPT_VORLAGE + eanHinweis))
+        return baueRequestBody(content)
+    }
 
-        val contents = JSONArray().put(JSONObject().put("role", "user").put("parts", parts))
-        val tools = JSONArray().put(JSONObject().put("google_search", JSONObject()))
-        // Niedrige Temperature: ohne explizite generationConfig läuft Gemini auf
-        // seinem Default (deutlich über 0), das macht sich bei wiederholten
-        // Anfragen für dasselbe Parfum (z. B. über "Daten aktualisieren") als
-        // spürbar unterschiedliche Ergebnisse bemerkbar (andere Notenauswahl,
-        // andere Formulierung, anderes Stock-Bild), obwohl sich an den echten
-        // Websuche-Treffern nichts geändert hat. Für eine Erkennungs-/Recherche-
-        // Aufgabe mit klarem JSON-Format ist Kreativität nicht gewollt — niedrige
-        // Temperature reduziert diese Varianz, ohne echte, zeitlich bedingte
-        // Änderungen (z. B. neue Websuche-Treffer) zu unterdrücken.
-        val generationConfig = JSONObject().put("temperature", 0.1)
+    /** Text-only-Variante — für Anfragen ohne Foto (Namenssuche, Namens-Vollabruf, Shop-Suche). */
+    private fun baueTextRequestBody(prompt: String): JSONObject {
+        val content = JSONArray().put(JSONObject().put("type", "text").put("text", prompt))
+        return baueRequestBody(content)
+    }
 
+    private fun baueRequestBody(content: JSONArray): JSONObject {
+        val messages = JSONArray().put(JSONObject().put("role", "user").put("content", content))
+        // max_uses deckelt die Anzahl der Suchrunden pro Anfrage — ohne dieses
+        // Limit liefen im Batch-Testlauf einzelne Anfragen bis zum Timeout durch
+        // (siehe KI-Vergleich-Historie). 5 Runden reichen für diese Aufgabe
+        // großzügig aus.
+        val tools = JSONArray().put(
+            JSONObject().put("type", WEB_SEARCH_TOOL_TYP).put("name", "web_search").put("max_uses", 5),
+        )
         return JSONObject()
-            .put("contents", contents)
+            .put("model", MODELL)
+            .put("max_tokens", 4096)
+            // Niedrige Temperature reduziert Varianz zwischen wiederholten
+            // Anfragen für dasselbe Parfum (z. B. "Daten aktualisieren") — gleiche
+            // Begründung wie zuvor bei GeminiService.
+            .put("temperature", 0.1)
             .put("tools", tools)
-            .put("generationConfig", generationConfig)
+            .put("messages", messages)
     }
 
-    private fun extrahiereText(rohantwort: String): String? = try {
-        val json = JSONObject(rohantwort)
-        val candidates = json.optJSONArray("candidates")
-        if (candidates == null || candidates.length() == 0) {
-            null
-        } else {
-            val parts = candidates.getJSONObject(0).getJSONObject("content").getJSONArray("parts")
-            val sb = StringBuilder()
-            for (i in 0 until parts.length()) {
-                sb.append(parts.getJSONObject(i).optString("text", ""))
+    /**
+     * Konkateniert alle Text-Blöcke der Antwort (überspringt server_tool_use/
+     * web_search_tool_result-Blöcke) und entfernt dabei rohe Zitat-Marker, die
+     * Claude (vor allem Haiku) bei Web-Search-gestützten Aussagen manchmal
+     * direkt im Fließtext hinterlässt (z. B. <cite index="2-1">...</cite>) —
+     * landet das innerhalb eines JSON-Strings, muss es vor dem Parsen raus.
+     */
+    private fun extrahiereText(json: JSONObject): String? {
+        val content = json.optJSONArray("content") ?: return null
+        val sb = StringBuilder()
+        for (i in 0 until content.length()) {
+            val block = content.getJSONObject(i)
+            if (block.optString("type") == "text") {
+                sb.append(block.optString("text", ""))
             }
-            sb.toString().takeIf { it.isNotBlank() }
         }
-    } catch (e: Exception) {
-        null
+        return sb.toString().takeIf { it.isNotBlank() }?.let(::entferneCiteTags)
     }
 
+    private fun entferneCiteTags(text: String): String = text.replace(CITE_TAG_REGEX, "")
+
+    /** Deckt sowohl Anthropics eigenes Fehlerformat ({"error":{"message":...}})
+     * als auch das schlankere Gateway-Format ({"fehler":"..."}) ab. */
     private fun fehlermeldungAus(rohantwort: String): String = try {
-        JSONObject(rohantwort).optJSONObject("error")?.optString("message") ?: rohantwort.take(200)
+        val json = JSONObject(rohantwort)
+        json.optJSONObject("error")?.optString("message")
+            ?: json.optStringOrNull("fehler")
+            ?: rohantwort.take(200)
     } catch (e: Exception) {
         rohantwort.take(200)
     }
 
-    private fun parseSuggestion(text: String): GeminiErgebnis {
+    private fun parseSuggestion(text: String): ErkennungErgebnis {
         val jsonText = extrahiereJsonSubstring(text)
-            ?: return GeminiErgebnis.Fehler("Antwort war kein gültiges JSON.")
+            ?: return ErkennungErgebnis.Fehler("Antwort war kein gültiges JSON.")
         return try {
             val json = JSONObject(jsonText)
             if (json.optBoolean("nichtGenugDaten", false)) {
-                return GeminiErgebnis.NichtGenugDaten
+                return ErkennungErgebnis.NichtGenugDaten
             }
-            GeminiErgebnis.Erfolg(
+            ErkennungErgebnis.Erfolg(
                 PerfumeSuggestion(
                     name = json.optStringOrNull("name"),
                     marke = json.optStringOrNull("marke"),
@@ -295,20 +355,13 @@ class GeminiService(
                 ),
             )
         } catch (e: Exception) {
-            GeminiErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
+            ErkennungErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
         }
     }
 
-    private fun extrahiereJsonSubstring(text: String): String? {
-        val start = text.indexOf('{')
-        val end = text.lastIndexOf('}')
-        if (start == -1 || end == -1 || end < start) return null
-        return text.substring(start, end + 1)
-    }
-
-    private fun parseKandidaten(text: String): GeminiKandidatenErgebnis {
+    private fun parseKandidaten(text: String): KandidatenErgebnis {
         val jsonText = extrahiereJsonArraySubstring(text)
-            ?: return GeminiKandidatenErgebnis.Fehler("Antwort war kein gültiges JSON.")
+            ?: return KandidatenErgebnis.Fehler("Antwort war kein gültiges JSON.")
         return try {
             val array = JSONArray(jsonText)
             val kandidaten = (0 until array.length()).mapNotNull { i ->
@@ -317,22 +370,15 @@ class GeminiService(
                 val marke = eintrag.optStringOrNull("marke") ?: return@mapNotNull null
                 PerfumeKandidat(name = name, marke = marke, kurzhinweis = eintrag.optStringOrNull("kurzhinweis"))
             }
-            if (kandidaten.isEmpty()) GeminiKandidatenErgebnis.NichtGefunden else GeminiKandidatenErgebnis.Erfolg(kandidaten)
+            if (kandidaten.isEmpty()) KandidatenErgebnis.NichtGefunden else KandidatenErgebnis.Erfolg(kandidaten)
         } catch (e: Exception) {
-            GeminiKandidatenErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
+            KandidatenErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
         }
     }
 
-    private fun extrahiereJsonArraySubstring(text: String): String? {
-        val start = text.indexOf('[')
-        val end = text.lastIndexOf(']')
-        if (start == -1 || end == -1 || end < start) return null
-        return text.substring(start, end + 1)
-    }
-
-    private fun parseShopAngebote(text: String): GeminiShopSucheErgebnis {
+    private fun parseShopAngebote(text: String): ShopSucheErgebnis {
         val jsonText = extrahiereJsonArraySubstring(text)
-            ?: return GeminiShopSucheErgebnis.Fehler("Antwort war kein gültiges JSON.")
+            ?: return ShopSucheErgebnis.Fehler("Antwort war kein gültiges JSON.")
         return try {
             val array = JSONArray(jsonText)
             val angebote = (0 until array.length()).mapNotNull { i ->
@@ -345,10 +391,24 @@ class GeminiService(
                     verfuegbarkeit = eintrag.optStringOrNull("verfuegbarkeit"),
                 )
             }
-            if (angebote.isEmpty()) GeminiShopSucheErgebnis.NichtGefunden else GeminiShopSucheErgebnis.Erfolg(angebote)
+            if (angebote.isEmpty()) ShopSucheErgebnis.NichtGefunden else ShopSucheErgebnis.Erfolg(angebote)
         } catch (e: Exception) {
-            GeminiShopSucheErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
+            ShopSucheErgebnis.Fehler("Antwort konnte nicht gelesen werden: ${e.message}")
         }
+    }
+
+    private fun extrahiereJsonSubstring(text: String): String? {
+        val start = text.indexOf('{')
+        val end = text.lastIndexOf('}')
+        if (start == -1 || end == -1 || end < start) return null
+        return text.substring(start, end + 1)
+    }
+
+    private fun extrahiereJsonArraySubstring(text: String): String? {
+        val start = text.indexOf('[')
+        val end = text.lastIndexOf(']')
+        if (start == -1 || end == -1 || end < start) return null
+        return text.substring(start, end + 1)
     }
 
     private fun JSONObject.optStringOrNull(key: String): String? =
@@ -363,20 +423,20 @@ class GeminiService(
     }
 
     private companion object {
-        const val ENDPOINT_BASIS = "https://generativelanguage.googleapis.com/v1beta/models"
-        // gemini-3.5-flash (zurückgewechselt von gemini-2.5-flash, siehe Commit-Historie):
-        // Grounding mit Google-Suche kostet hier seit 5.1.2026 Geld (429 ohne aktives
-        // Billing), aber die 2.5er-Reihe ist inzwischen für neu erstellte API-Keys
-        // komplett gesperrt (404 "no longer available to new users", vorgezogen vor dem
-        // offiziellen Abschaltdatum 16.10.2026) — Grounding mit einem älteren Modell
-        // kostenlos zu bekommen ist damit kein gangbarer Weg mehr. Erfordert stattdessen
-        // ein Google-Cloud-Billing-Konto (pay-as-you-go, 5.000 grounded Anfragen/Monat
-        // weiterhin gratis inklusive, siehe ai.google.dev/gemini-api/docs/pricing).
-        const val MODELL = "gemini-3.5-flash"
+        const val ENDPOINT = "https://api.anthropic.com/v1/messages"
+        const val ANTHROPIC_VERSION = "2023-06-01"
+        const val MODELL = "claude-haiku-4-5"
 
-        const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+        // Haikus Basis-Web-Search-Variante — die dynamische-Filterung-Variante
+        // (web_search_20260209) ist Sonnet/Opus-Modellen vorbehalten.
+        const val WEB_SEARCH_TOOL_TYP = "web_search_20250305"
 
+        // Trifft sowohl öffnende Tags mit Attributen (<cite index="2-1">) als
+        // auch den schließenden Tag (</cite>).
+        val CITE_TAG_REGEX = Regex("</?cite[^>]*>")
+
+        // Prompts unverändert von GeminiService übernommen (waren bereits
+        // anbieter-neutral formuliert, keine Gemini-spezifische Wortwahl).
         val PROMPT_VORLAGE = """
             Du bist ein Parfum-Experte. Analysiere das beigefügte Foto eines
             Parfum-Flakons genau (Markenlogo, Produktname auf dem Etikett,
