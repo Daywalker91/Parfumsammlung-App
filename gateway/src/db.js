@@ -88,6 +88,15 @@ async function loescheApiKey(id) {
   await pool.query('DELETE FROM api_keys WHERE id = ?', [id]);
 }
 
+/**
+ * Löscht einen Zugangs-Code endgültig. nutzung.code_id verweist mit
+ * ON DELETE CASCADE darauf -- dessen Nutzungs-Historie wird automatisch mit
+ * entfernt, kein manuelles Aufräumen nötig.
+ */
+async function loescheAccessCode(id) {
+  await pool.query('DELETE FROM access_codes WHERE id = ?', [id]);
+}
+
 /** Zentraler Spenden-Link (z. B. PayPal.me), über /admin gepflegt -- siehe /v1/status. */
 async function holeSpendenLink() {
   const [rows] = await pool.query('SELECT spenden_link FROM einstellungen WHERE id = 1');
@@ -113,6 +122,7 @@ module.exports = {
   alleApiKeys,
   alleAccessCodes,
   loescheApiKey,
+  loescheAccessCode,
   holeSpendenLink,
   setzeSpendenLink,
 };
