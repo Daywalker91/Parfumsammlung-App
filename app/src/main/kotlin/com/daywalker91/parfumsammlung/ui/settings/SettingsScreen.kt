@@ -125,59 +125,72 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.claude_key_erklaerung), style = MaterialTheme.typography.bodyMedium)
+            // Nur eines der beiden Felder ergibt gleichzeitig Sinn (ClaudeService nutzt
+            // ohnehin nur den eigenen Key, falls vorhanden — sonst den Lizenzschlüssel).
+            // Ein bereits befülltes Feld bleibt sichtbar (zum Ansehen/Löschen), das jeweils
+            // andere blendet sich aus, sobald hier etwas eingetragen ist. Sind (z. B. aus der
+            // Zeit vor dieser Änderung) ausnahmsweise beide befüllt, werden bewusst beide
+            // gezeigt statt beide zu verstecken — kein Zustand ohne Ausweg.
+            val apiKeySichtbar = uiState.apiKey.isNotBlank() || uiState.lizenzschluessel.isBlank()
+            val lizenzSichtbar = uiState.lizenzschluessel.isNotBlank() || uiState.apiKey.isBlank()
 
-            OutlinedTextField(
-                value = uiState.apiKey,
-                onValueChange = viewModel::apiKeyGeaendert,
-                label = { Text(stringResource(R.string.claude_api_key)) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (apiKeySichtbar) {
+                Text(stringResource(R.string.claude_key_erklaerung), style = MaterialTheme.typography.bodyMedium)
 
-            // Komfort statt Automatisierung: eine echte Console-Auto-Provisionierung
-            // ist nicht möglich (Anthropic sperrt OAuth-Flows serverseitig auf Claude
-            // Code/Claude.ai, siehe Plan) — hier nur Browser-Shortcut + Zwischenablage.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CLAUDE_CONSOLE_URL)))
-                    },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.claude_console_oeffnen)) }
-                OutlinedButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        val text = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
-                        if (!text.isNullOrBlank()) viewModel.apiKeyGeaendert(text.trim())
-                    },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.aus_zwischenablage_einfuegen)) }
+                OutlinedTextField(
+                    value = uiState.apiKey,
+                    onValueChange = viewModel::apiKeyGeaendert,
+                    label = { Text(stringResource(R.string.claude_api_key)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Komfort statt Automatisierung: eine echte Console-Auto-Provisionierung
+                // ist nicht möglich (Anthropic sperrt OAuth-Flows serverseitig auf Claude
+                // Code/Claude.ai, siehe Plan) — hier nur Browser-Shortcut + Zwischenablage.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CLAUDE_CONSOLE_URL)))
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.claude_console_oeffnen)) }
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            val text = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+                            if (!text.isNullOrBlank()) viewModel.apiKeyGeaendert(text.trim())
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.aus_zwischenablage_einfuegen)) }
+                }
             }
 
-            // Alternative zum eigenen Key: individueller Lizenzschlüssel (Lizenz-Gateway-Plan) —
-            // greift nur, wenn oben kein eigener Key hinterlegt ist (ClaudeService entscheidet).
-            OutlinedTextField(
-                value = uiState.lizenzschluessel,
-                onValueChange = viewModel::lizenzschluesselGeaendert,
-                label = { Text(stringResource(R.string.lizenzschluessel_feld)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(stringResource(R.string.lizenzschluessel_erklaerung), style = MaterialTheme.typography.bodySmall)
+            if (lizenzSichtbar) {
+                // Alternative zum eigenen Key: individueller Lizenzschlüssel (Lizenz-Gateway-Plan) —
+                // greift nur, wenn oben kein eigener Key hinterlegt ist (ClaudeService entscheidet).
+                OutlinedTextField(
+                    value = uiState.lizenzschluessel,
+                    onValueChange = viewModel::lizenzschluesselGeaendert,
+                    label = { Text(stringResource(R.string.lizenzschluessel_feld)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(stringResource(R.string.lizenzschluessel_erklaerung), style = MaterialTheme.typography.bodySmall)
 
-            when (val status = uiState.gatewayStatus) {
-                is GatewayStatus.Verfuegbar -> Text(
-                    stringResource(R.string.gateway_status_verfuegbar, status.verbleibendHeute),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                GatewayStatus.Gesperrt -> Text(
-                    stringResource(R.string.gateway_status_gesperrt),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                GatewayStatus.KeinGateway -> Unit
+                when (val status = uiState.gatewayStatus) {
+                    is GatewayStatus.Verfuegbar -> Text(
+                        stringResource(R.string.gateway_status_verfuegbar, status.verbleibendHeute),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    GatewayStatus.Gesperrt -> Text(
+                        stringResource(R.string.gateway_status_gesperrt),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    GatewayStatus.KeinGateway -> Unit
+                }
             }
 
             Button(onClick = viewModel::speichern, modifier = Modifier.fillMaxWidth()) {
