@@ -33,7 +33,16 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    # Nativer arm64-Runner statt amd64 + QEMU-Emulation -- vermeidet einen
+    # live reproduzierten QEMU-Bug ("uncaught target signal 4 (Illegal
+    # instruction)" bei "npm install" unter Emulation), der einen Build-Lauf
+    # 6h lang haengen liess statt sauber fehlzuschlagen. Zusaetzlich ist ein
+    # nativer Build auch schlicht schneller als Emulation.
+    runs-on: ubuntu-24.04-arm
+    # Sicherheitsnetz falls doch mal wieder was haengt: bricht dann nach
+    # spaetestens 20 Minuten sichtbar fehlgeschlagen ab statt 6h stumm zu
+    # haengen.
+    timeout-minutes: 20
     # Guard wie beim App-Workflow: verhindert einen versehentlichen Build,
     # falls workflow_dispatch von einem anderen Branch ausgeloest wird.
     if: github.ref_name == 'Gateway' || github.ref_name == 'Experimental'
@@ -45,9 +54,6 @@ jobs:
         with:
           fetch-depth: 0 # volle Tag-Historie nötig, um den letzten gateway-vX.Y-Tag zu finden
 
-      # ubuntu-latest-Runner sind selbst amd64 — QEMU macht das Cross-Building
-      # für arm64 (aktuelle Zielarchitektur der k3s-Nodes) möglich.
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
