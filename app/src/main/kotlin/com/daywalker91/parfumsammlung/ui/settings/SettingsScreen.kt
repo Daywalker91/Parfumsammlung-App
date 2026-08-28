@@ -234,17 +234,17 @@ fun SettingsScreen(
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
-            OutlinedButton(onClick = viewModel::verbrauchBeglichen, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.verbrauch_beglichen))
-            }
             Text(stringResource(R.string.verbrauch_schaetzung_hinweis), style = MaterialTheme.typography.bodySmall)
 
             // Kein Backend, keine automatische Zahlungsbestätigung möglich — rein
-            // manueller/Ehrlichkeits-Ablauf: Spenden-Button öffnet den Link, der
-            // "Verbrauch beglichen"-Button oben wird danach von Hand bestätigt.
-            // Link kommt zentral vom Gateway (über /admin gepflegt, siehe Plan) —
-            // deshalb nur sichtbar, wenn gerade per Lizenzschlüssel gelaufen wird
-            // (bei eigenem API-Key zahlt man ja direkt an Anthropic, kein Sinn).
+            // manueller/Ehrlichkeits-Ablauf. Link kommt zentral vom Gateway (über
+            // /admin gepflegt, siehe Plan) — deshalb nur sichtbar, wenn gerade per
+            // Lizenzschlüssel gelaufen wird (bei eigenem API-Key zahlt man ja direkt
+            // an Anthropic, da ergibt weder Spenden noch "beglichen" Sinn dafür).
+            // Ist der Spenden-Button da, übernimmt er direkt auch den Reset (ein
+            // Tap statt zwei) — sonst (BYOK oder noch kein Spenden-Link hinterlegt)
+            // bleibt der eigenständige "Verbrauch beglichen"-Button als einziger Weg,
+            // den Zähler zurückzusetzen.
             val spendenLink = (uiState.gatewayStatus as? GatewayStatus.Verfuegbar)?.spendenLink
             if (spendenLink != null) {
                 Text(stringResource(R.string.spenden_hinweis), style = MaterialTheme.typography.bodySmall)
@@ -257,9 +257,14 @@ fun SettingsScreen(
                             spendenLink
                         }
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ziel)))
+                        viewModel.verbrauchBeglichen()
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.spenden_button)) }
+            } else {
+                OutlinedButton(onClick = viewModel::verbrauchBeglichen, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.verbrauch_beglichen))
+                }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
