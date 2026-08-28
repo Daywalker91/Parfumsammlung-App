@@ -19,8 +19,16 @@ name: Deploy Gateway
 on:
   push:
     branches: [Gateway]
+    # Nur Pfade, die den Image-Inhalt tatsächlich beeinflussen — reine
+    # Änderungen an gateway/k8s/ (Manifeste) brauchen kein neues Image, ArgoCD
+    # wendet die unabhängig vom Build an. Vermeidet unnötige Builds (einer
+    # davon hing 6h fest und wurde vom GitHub-Timeout abgebrochen).
     paths:
-      - "gateway/**"
+      - "gateway/server.js"
+      - "gateway/src/**"
+      - "gateway/package.json"
+      - "gateway/package-lock.json"
+      - "gateway/Dockerfile"
   workflow_dispatch:
 
 jobs:
