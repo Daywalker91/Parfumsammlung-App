@@ -89,6 +89,10 @@ async function seite(req, res, hinweis) {
         <form method="post" action="/admin/keys/${k.id}/standard" style="display:inline">
           <button type="submit" ${k.ist_standard ? 'disabled' : ''}>Als Standard</button>
         </form>
+        <form method="post" action="/admin/keys/${k.id}/delete" style="display:inline"
+              onsubmit="return confirm('Diesen API-Key endgültig löschen? Codes, die ihn nutzen, fallen danach auf den Standard-Key zurück.');">
+          <button type="submit">Löschen</button>
+        </form>
       </td>
     </tr>`,
     )
@@ -185,6 +189,11 @@ router.post('/keys', asyncHandler(async (req, res) => {
 router.post('/keys/:id/toggle', asyncHandler(async (req, res) => {
   await db.pool.query('UPDATE api_keys SET aktiv = NOT aktiv WHERE id = ?', [req.params.id]);
   res.redirect('/admin');
+}));
+
+router.post('/keys/:id/delete', asyncHandler(async (req, res) => {
+  await db.loescheApiKey(req.params.id);
+  await seite(req, res, 'Key gelöscht.');
 }));
 
 router.post('/einstellungen', asyncHandler(async (req, res) => {
