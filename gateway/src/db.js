@@ -111,6 +111,35 @@ async function setzeSpendenLink(link) {
   );
 }
 
+/**
+ * Verbrauchs-Übersicht pro Zugangs-Code: heute / diesen Kalendermonat /
+ * insgesamt (jeweils Anzahl + Kosten in Microcent). Rein lesend aus der
+ * ohnehin schon fürs Tageslimit geführten nutzung-Tabelle -- kein neues
+ * Secret, keine externe Abfrage nötig (siehe Plan "Verbrauchs-Übersicht").
+ * Datumsgrenzen werden bewusst in JS berechnet (nicht CURDATE() in SQL), um
+ * konsistent mit heute() (UTC) zu bleiben, statt von der Server-Zeitzone der
+ * DB abzuhängen.
+ */
+async function verbrauchProCode() {
+  const heuteStr = heute();
+  const monatStr = `${heuteStr.slice(0, 7)}-01`;
+  const [rows] = await pool.query(
+    `SELECT ac.id, ac.code, ac.label, ac.aktiv,
+            COALESCE(SUM(CASE WHEN n.datum = ? THEN n.kosten_microcent END), 0) AS heute_microcent,
+            COALESCE(SUM(CASE WHEN n.datum = ? THEN n.anzahl END), 0) AS heute_anzahl,
+            COALESCE(SUM(CASE WHEN n.datum >= ? THEN n.kosten_microcent END), 0) AS monat_microcent,
+            COALESCE(SUM(CASE WHEN n.datum >= ? THEN n.anzahl END), 0) AS monat_anzahl,
+            COALESCE(SUM(n.kosten_microcent), 0) AS gesamt_microcent,
+            COALESCE(SUM(n.anzahl), 0) AS gesamt_anzahl
+     FROM access_codes ac
+     LEFT JOIN nutzung n ON n.code_id = ac.id
+     GROUP BY ac.id
+     ORDER BY gesamt_microcent DESC`,
+    [heuteStr, heuteStr, monatStr, monatStr],
+  );
+  return rows;
+}
+
 module.exports = {
   pool,
   heute,
@@ -125,4 +154,5 @@ module.exports = {
   loescheAccessCode,
   holeSpendenLink,
   setzeSpendenLink,
+  verbrauchProCode,
 };
