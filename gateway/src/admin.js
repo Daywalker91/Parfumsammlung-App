@@ -70,6 +70,10 @@ async function seite(req, res, hinweis) {
         <form method="post" action="/admin/codes/${c.id}/toggle" style="display:inline">
           <button type="submit">${c.aktiv ? 'Sperren' : 'Aktivieren'}</button>
         </form>
+        <form method="post" action="/admin/codes/${c.id}/delete" style="display:inline"
+              onsubmit="return confirm('Diesen Zugangs-Code endgültig löschen? Damit wird auch dessen Nutzungs-Historie entfernt.');">
+          <button type="submit">Löschen</button>
+        </form>
       </td>
     </tr>`,
     )
@@ -170,6 +174,11 @@ router.post('/codes', asyncHandler(async (req, res) => {
 router.post('/codes/:id/toggle', asyncHandler(async (req, res) => {
   await db.pool.query('UPDATE access_codes SET aktiv = NOT aktiv WHERE id = ?', [req.params.id]);
   res.redirect('/admin');
+}));
+
+router.post('/codes/:id/delete', asyncHandler(async (req, res) => {
+  await db.loescheAccessCode(req.params.id);
+  await seite(req, res, 'Zugangs-Code gelöscht.');
 }));
 
 router.post('/codes/:id/key', asyncHandler(async (req, res) => {
