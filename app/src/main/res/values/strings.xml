@@ -84,6 +84,7 @@
     <string name="lizenzschluessel_feld">Lizenzschlüssel</string>
     <string name="lizenzschluessel_erklaerung">Alternative zum eigenen API-Key: ein individueller Lizenzschlüssel, den du persönlich zugeteilt bekommen hast. Wird nur genutzt, wenn kein eigener API-Key hinterlegt ist.</string>
     <string name="gateway_status_verfuegbar">Läuft über Lizenzschlüssel (noch %1$d Anfragen heute)</string>
+    <string name="gateway_status_unlimitiert">Läuft über Lizenzschlüssel (unlimitiert)</string>
     <string name="gateway_status_gesperrt">Lizenzschlüssel ausgeschöpft oder gesperrt</string>
 
     <!-- Onboarding-Dialog: Wahl zwischen eigenem API-Key und Lizenzschlüssel -->

@@ -182,7 +182,11 @@ fun SettingsScreen(
 
                 when (val status = uiState.gatewayStatus) {
                     is GatewayStatus.Verfuegbar -> Text(
-                        stringResource(R.string.gateway_status_verfuegbar, status.verbleibendHeute),
+                        if (status.verbleibendHeute != null) {
+                            stringResource(R.string.gateway_status_verfuegbar, status.verbleibendHeute)
+                        } else {
+                            stringResource(R.string.gateway_status_unlimitiert)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                     )
                     GatewayStatus.Gesperrt -> Text(

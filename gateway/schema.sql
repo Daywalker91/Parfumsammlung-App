@@ -5,6 +5,11 @@
 --   GRANT ALL PRIVILEGES ON parfumsammlung_gateway.* TO 'gateway'@'%';
 --   FLUSH PRIVILEGES;
 -- Danach: mysql -u gateway -p parfumsammlung_gateway < schema.sql
+--
+-- MIGRATION (bestehende DB, "unlimitiert"-Feature): CREATE TABLE IF NOT EXISTS
+-- aendert die Spalte auf einer bereits existierenden Tabelle nicht -- einmalig
+-- manuell nachziehen:
+--   ALTER TABLE access_codes MODIFY tageslimit_microcent BIGINT NULL DEFAULT 500000000;
 
 CREATE TABLE IF NOT EXISTS api_keys (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -23,7 +28,8 @@ CREATE TABLE IF NOT EXISTS access_codes (
   label VARCHAR(255),
   aktiv BOOLEAN NOT NULL DEFAULT TRUE,
   -- Tagesbudget in Micro-Cent (1 Cent = 1.000.000 Microcent), Default 5,00 €.
-  tageslimit_microcent BIGINT NOT NULL DEFAULT 500000000,
+  -- NULL = unlimitiert (Budget-Pruefung wird uebersprungen, siehe server.js).
+  tageslimit_microcent BIGINT NULL DEFAULT 500000000,
   api_key_id INT NULL,
   erstellt_am DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_access_codes_api_key FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL
