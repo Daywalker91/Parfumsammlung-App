@@ -49,8 +49,12 @@ sealed interface ShopSucheErgebnis {
 
 /** Zustand des geteilten Gateway-Zugangs (Lizenzschlüssel) — reine Anzeige in den Settings, kein Cache. */
 sealed interface GatewayStatus {
-    /** [spendenLink] kommt zentral vom Gateway (über /admin gepflegt) — die App hängt nur noch den Betrag an. */
-    data class Verfuegbar(val verbleibendHeute: Int, val spendenLink: String? = null) : GatewayStatus
+    /**
+     * [verbleibendHeute] ist null bei unlimitiertem Tageslimit (am Gateway leer
+     * gelassen). [spendenLink] kommt zentral vom Gateway (über /admin gepflegt)
+     * — die App hängt nur noch den Betrag an.
+     */
+    data class Verfuegbar(val verbleibendHeute: Int?, val spendenLink: String? = null) : GatewayStatus
     data object Gesperrt : GatewayStatus
     /** Kein Gateway in diesem Build (Dev-Build) ODER kein Lizenzschlüssel hinterlegt. */
     data object KeinGateway : GatewayStatus
@@ -111,7 +115,13 @@ class ClaudeService(
                     val json = JSONObject(response.body.string())
                     if (json.optBoolean("gueltig", false)) {
                         GatewayStatus.Verfuegbar(
-                            verbleibendHeute = json.optInt("verbleibendHeute", 0),
+                            // null = unlimitiertes Tageslimit (siehe /admin, Feld leer lassen) —
+                            // der Gateway lässt "verbleibendHeute" dann ganz weg.
+                            verbleibendHeute = if (json.optBoolean("unlimitiert", false)) {
+                                null
+                            } else {
+                                json.optInt("verbleibendHeute", 0)
+                            },
                             spendenLink = json.optString("spendenLink").takeIf { it.isNotBlank() },
                         )
                     } else {

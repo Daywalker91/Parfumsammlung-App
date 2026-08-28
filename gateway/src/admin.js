@@ -43,6 +43,21 @@ function euro(microcent) {
   return (microcent / 100_000_000).toFixed(2).replace('.', ',');
 }
 
+/**
+ * Parst ein €-Tageslimit-Formularfeld. Leer -> null (unlimitiert, siehe Plan
+ * "Was passiert bei 0,0? Ist das unlimitiert?"). Akzeptiert Komma als
+ * Dezimaltrenner (deutsche Eingabe). Gibt bei ungültiger (nicht-leerer)
+ * Eingabe undefined zurück, statt still einen Default zu setzen -- 0 selbst
+ * ist ein gültiger Wert (bedeutet "sofort gesperrt", nicht unlimitiert).
+ */
+function parseTageslimitMicrocent(raw) {
+  const text = (raw || '').trim();
+  if (text === '') return null;
+  const euroWert = Number.parseFloat(text.replace(',', '.'));
+  if (!Number.isFinite(euroWert) || euroWert < 0) return undefined;
+  return Math.round(euroWert * 100_000_000);
+}
+
 async function seite(req, res, hinweis) {
   const codes = await db.alleAccessCodes();
   const keys = await db.alleApiKeys();
@@ -60,7 +75,14 @@ async function seite(req, res, hinweis) {
       <td><code>${escapeHtml(c.code)}</code></td>
       <td>${escapeHtml(c.label || '')}</td>
       <td>${c.aktiv ? 'aktiv' : 'gesperrt'}</td>
-      <td>${euro(c.tageslimit_microcent)} €/Tag</td>
+      <td>
+        <form method="post" action="/admin/codes/${c.id}/limit" style="display:inline">
+          <input name="tageslimitEuro" placeholder="leer = unlimitiert" size="8"
+                 value="${c.tageslimit_microcent === null ? '' : euro(c.tageslimit_microcent)}">
+          <button type="submit">Setzen</button>
+        </form>
+        ${c.tageslimit_microcent === null ? '<br><small>unlimitiert</small>' : ''}
+      </td>
       <td>
         <form method="post" action="/admin/codes/${c.id}/key" style="display:inline">
           <select name="apiKeyId" onchange="this.form.submit()">${keyOptionen(c.api_key_id)}</select>
@@ -123,7 +145,7 @@ ${codeZeilen}
 </table>
 <form class="inline" method="post" action="/admin/codes">
   <input name="label" placeholder="Label (z. B. Bruder)">
-  <input name="tageslimitEuro" placeholder="Tageslimit in €" value="5.00">
+  <input name="tageslimitEuro" placeholder="Tageslimit in € (leer = unlimitiert)" value="5.00">
   <button type="submit">Neuen Code erzeugen</button>
 </form>
 
@@ -162,17 +184,25 @@ router.get('/', asyncHandler(async (req, res) => {
 
 router.post('/codes', asyncHandler(async (req, res) => {
   const label = (req.body.label || '').trim();
-  const tageslimitEuro = Number.parseFloat(req.body.tageslimitEuro) || 5;
+  let tageslimitMicrocent = parseTageslimitMicrocent(req.body.tageslimitEuro);
+  if (tageslimitMicrocent === undefined) tageslimitMicrocent = 500_000_000; // ungueltige Eingabe -> Default 5,00 €, nicht unlimitiert
   const code = crypto.randomBytes(16).toString('hex'); // 128 Bit Entropie — nicht brute-forcebar.
   await db.pool.query(
     'INSERT INTO access_codes (code, label, tageslimit_microcent) VALUES (?, ?, ?)',
-    [code, label || null, Math.round(tageslimitEuro * 100_000_000)],
+    [code, label || null, tageslimitMicrocent],
   );
   await seite(req, res, `Neuer Code erzeugt: ${code} — jetzt persönlich weitergeben.`);
 }));
 
 router.post('/codes/:id/toggle', asyncHandler(async (req, res) => {
   await db.pool.query('UPDATE access_codes SET aktiv = NOT aktiv WHERE id = ?', [req.params.id]);
+  res.redirect('/admin');
+}));
+
+router.post('/codes/:id/limit', asyncHandler(async (req, res) => {
+  const tageslimitMicrocent = parseTageslimitMicrocent(req.body.tageslimitEuro);
+  if (tageslimitMicrocent === undefined) return seite(req, res, 'Ungültiger Betrag — leer lassen für unlimitiert.');
+  await db.pool.query('UPDATE access_codes SET tageslimit_microcent = ? WHERE id = ?', [tageslimitMicrocent, req.params.id]);
   res.redirect('/admin');
 }));
 

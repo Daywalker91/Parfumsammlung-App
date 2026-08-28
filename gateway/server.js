@@ -25,13 +25,17 @@ app.get('/v1/status', async (req, res) => {
     if (!code) return res.status(400).json({ fehler: 'Kein Zugangs-Code angegeben.' });
     const eintrag = await db.findeAccessCode(code);
     if (!eintrag || !eintrag.aktiv) return res.json({ gueltig: false, verbleibendHeute: 0 });
+    // Zentral über /admin gepflegter Spenden-Link (siehe Plan) — Betrag hängt
+    // die App selbst an (kennt nur sie, "seit Zahlung" ist rein lokaler Zähler).
+    const spendenLink = await db.holeSpendenLink();
+    // tageslimit_microcent === NULL -> unlimitiert, kein Tagesbudget zum Anzeigen.
+    if (eintrag.tageslimit_microcent === null) {
+      return res.json({ gueltig: true, unlimitiert: true, ...(spendenLink ? { spendenLink } : {}) });
+    }
     const nutzung = await db.heutigeNutzung(eintrag.id);
     const verbleibendMicrocent = Math.max(0, eintrag.tageslimit_microcent - nutzung.kosten_microcent);
     // Grobe Anfragen-Schätzung nur für die Anzeige (5 Cent/Anfrage Richtwert) — das eigentliche Limit ist €-basiert.
     const verbleibendHeute = Math.floor(verbleibendMicrocent / 5_000_000);
-    // Zentral über /admin gepflegter Spenden-Link (siehe Plan) — Betrag hängt
-    // die App selbst an (kennt nur sie, "seit Zahlung" ist rein lokaler Zähler).
-    const spendenLink = await db.holeSpendenLink();
     res.json({ gueltig: true, verbleibendHeute, ...(spendenLink ? { spendenLink } : {}) });
   } catch (e) {
     console.error('Fehler in /v1/status:', e);
@@ -50,9 +54,12 @@ app.post('/v1/messages', async (req, res) => {
     }
 
     // Schritt 1: Pro-Code-Fairness — Tagesbudget in € (nicht rohe Anfragen-Zahl, siehe Plan).
-    const nutzung = await db.heutigeNutzung(eintrag.id);
-    if (nutzung.kosten_microcent >= eintrag.tageslimit_microcent) {
-      return res.status(429).json({ fehler: 'Dieser Zugang ist für heute aufgebraucht — versuch es morgen wieder.' });
+    // tageslimit_microcent === NULL -> unlimitiert, Pruefung wird uebersprungen.
+    if (eintrag.tageslimit_microcent !== null) {
+      const nutzung = await db.heutigeNutzung(eintrag.id);
+      if (nutzung.kosten_microcent >= eintrag.tageslimit_microcent) {
+        return res.status(429).json({ fehler: 'Dieser Zugang ist für heute aufgebraucht — versuch es morgen wieder.' });
+      }
     }
 
     // Schritt 2: zugehörigen API-Key ermitteln (zugewiesen -> Standard -> Fehler).
