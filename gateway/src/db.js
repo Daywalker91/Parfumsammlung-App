@@ -78,6 +78,16 @@ async function alleAccessCodes() {
   return rows;
 }
 
+/**
+ * Löscht einen API-Key endgültig. access_codes.api_key_id verweist mit
+ * ON DELETE SET NULL darauf -- betroffene Codes fallen danach automatisch auf
+ * den Standard-Key zurück (siehe /v1/messages Schritt 2), kein manuelles
+ * Aufräumen nötig.
+ */
+async function loescheApiKey(id) {
+  await pool.query('DELETE FROM api_keys WHERE id = ?', [id]);
+}
+
 /** Zentraler Spenden-Link (z. B. PayPal.me), über /admin gepflegt -- siehe /v1/status. */
 async function holeSpendenLink() {
   const [rows] = await pool.query('SELECT spenden_link FROM einstellungen WHERE id = 1');
@@ -102,6 +112,7 @@ module.exports = {
   findeStandardApiKey,
   alleApiKeys,
   alleAccessCodes,
+  loescheApiKey,
   holeSpendenLink,
   setzeSpendenLink,
 };
