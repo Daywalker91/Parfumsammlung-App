@@ -151,7 +151,6 @@ fun AromathekNavHost(
                 backupManager = container.backupManager,
                 sortPreferenceStore = container.sortPreferenceStore,
                 usageCounterStore = container.usageCounterStore,
-                spendenLinkStore = container.spendenLinkStore,
                 gatewayAccessCodeStore = container.gatewayAccessCodeStore,
                 claudeService = container.claudeService,
                 onBack = { navController.popBackStack() },

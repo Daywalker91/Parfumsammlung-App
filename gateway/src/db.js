@@ -78,6 +78,20 @@ async function alleAccessCodes() {
   return rows;
 }
 
+/** Zentraler Spenden-Link (z. B. PayPal.me), über /admin gepflegt -- siehe /v1/status. */
+async function holeSpendenLink() {
+  const [rows] = await pool.query('SELECT spenden_link FROM einstellungen WHERE id = 1');
+  return rows[0]?.spenden_link || null;
+}
+
+async function setzeSpendenLink(link) {
+  await pool.query(
+    `INSERT INTO einstellungen (id, spenden_link) VALUES (1, ?)
+     ON DUPLICATE KEY UPDATE spenden_link = VALUES(spenden_link)`,
+    [link || null],
+  );
+}
+
 module.exports = {
   pool,
   heute,
@@ -88,4 +102,6 @@ module.exports = {
   findeStandardApiKey,
   alleApiKeys,
   alleAccessCodes,
+  holeSpendenLink,
+  setzeSpendenLink,
 };

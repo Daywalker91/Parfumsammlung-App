@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
-import com.daywalker91.parfumsammlung.data.SpendenLinkStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
@@ -40,7 +39,6 @@ data class SettingsUiState(
     val backupLaeuft: Boolean = false,
     val sortMode: SortMode = SortMode.NAME,
     val verbrauch: VerbrauchUiState = VerbrauchUiState(),
-    val spendenLink: String = "",
 )
 
 /** Zwei unabhängige Zähler-Sets, siehe UsageCounterStore — nur zur Anzeige, kein eigener State. */
@@ -59,7 +57,6 @@ class SettingsViewModel(
     private val backupManager: BackupManager,
     private val sortPreferenceStore: SortPreferenceStore,
     private val usageCounterStore: UsageCounterStore,
-    private val spendenLinkStore: SpendenLinkStore,
     private val gatewayAccessCodeStore: GatewayAccessCodeStore,
     private val claudeService: ClaudeService,
 ) : ViewModel() {
@@ -70,7 +67,6 @@ class SettingsViewModel(
             lizenzschluessel = gatewayAccessCodeStore.getCode().orEmpty(),
             sortMode = sortPreferenceStore.getSortMode(),
             verbrauch = verbrauchAusStore(),
-            spendenLink = spendenLinkStore.getLink().orEmpty(),
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -123,12 +119,6 @@ class SettingsViewModel(
     }
 
     fun versionZeileGetippt() = _uiState.update { it.copy(versionZeilenTaps = it.versionZeilenTaps + 1) }
-
-    /** Speichert sofort bei jeder Änderung — kein eigener Speichern-Button, kein Secret. */
-    fun spendenLinkGeaendert(value: String) {
-        spendenLinkStore.setLink(value)
-        _uiState.update { it.copy(spendenLink = value) }
-    }
 
     fun sortModeGeaendert(mode: SortMode) {
         sortPreferenceStore.setSortMode(mode)

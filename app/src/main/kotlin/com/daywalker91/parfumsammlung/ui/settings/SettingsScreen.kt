@@ -52,7 +52,6 @@ import com.daywalker91.parfumsammlung.R
 import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.SortMode
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
-import com.daywalker91.parfumsammlung.data.SpendenLinkStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.claude.ClaudeApiKeyStore
@@ -71,7 +70,6 @@ fun SettingsScreen(
     backupManager: BackupManager,
     sortPreferenceStore: SortPreferenceStore,
     usageCounterStore: UsageCounterStore,
-    spendenLinkStore: SpendenLinkStore,
     gatewayAccessCodeStore: GatewayAccessCodeStore,
     claudeService: ClaudeService,
     onBack: () -> Unit,
@@ -85,7 +83,6 @@ fun SettingsScreen(
                     backupManager,
                     sortPreferenceStore,
                     usageCounterStore,
-                    spendenLinkStore,
                     gatewayAccessCodeStore,
                     claudeService,
                 )
@@ -232,20 +229,25 @@ fun SettingsScreen(
             // Kein Backend, keine automatische Zahlungsbestätigung möglich — rein
             // manueller/Ehrlichkeits-Ablauf: Spenden-Button öffnet den Link, der
             // "Verbrauch beglichen"-Button oben wird danach von Hand bestätigt.
-            OutlinedTextField(
-                value = uiState.spendenLink,
-                onValueChange = viewModel::spendenLinkGeaendert,
-                label = { Text(stringResource(R.string.spenden_link_feld)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedButton(
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uiState.spendenLink)))
-                },
-                enabled = uiState.spendenLink.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.spenden_button)) }
+            // Link kommt zentral vom Gateway (über /admin gepflegt, siehe Plan) —
+            // deshalb nur sichtbar, wenn gerade per Lizenzschlüssel gelaufen wird
+            // (bei eigenem API-Key zahlt man ja direkt an Anthropic, kein Sinn).
+            val spendenLink = (uiState.gatewayStatus as? GatewayStatus.Verfuegbar)?.spendenLink
+            if (spendenLink != null) {
+                Text(stringResource(R.string.spenden_hinweis), style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = {
+                        val betrag = uiState.verbrauch.kostenSeitZahlungEuro
+                        val ziel = if (betrag > 0) {
+                            "${spendenLink.trimEnd('/')}/${String.format(Locale.US, "%.2f", betrag)}EUR"
+                        } else {
+                            spendenLink
+                        }
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ziel)))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.spenden_button)) }
+            }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 

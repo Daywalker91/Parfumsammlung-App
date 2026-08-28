@@ -9,7 +9,6 @@ import com.daywalker91.parfumsammlung.data.GatewayAccessCodeStore
 import com.daywalker91.parfumsammlung.data.ImageStorage
 import com.daywalker91.parfumsammlung.data.PerfumeRepository
 import com.daywalker91.parfumsammlung.data.SortPreferenceStore
-import com.daywalker91.parfumsammlung.data.SpendenLinkStore
 import com.daywalker91.parfumsammlung.data.UsageCounterStore
 import com.daywalker91.parfumsammlung.data.backup.BackupManager
 import com.daywalker91.parfumsammlung.data.batch.BatchErgebnisStore
@@ -57,8 +56,6 @@ class AppContainer(private val context: Context) {
     val claudeService: ClaudeService by lazy { ClaudeService(usageCounterStore, gatewayAccessCodeStore) }
 
     val bildDownloader: BildDownloader by lazy { BildDownloader() }
-
-    val spendenLinkStore: SpendenLinkStore by lazy { SpendenLinkStore(context) }
 
     // Batch-Fotoimport (Feature 6).
     val workManager: WorkManager by lazy { WorkManager.getInstance(context) }

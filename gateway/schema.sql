@@ -37,3 +37,14 @@ CREATE TABLE IF NOT EXISTS nutzung (
   PRIMARY KEY (code_id, datum),
   CONSTRAINT fk_nutzung_access_code FOREIGN KEY (code_id) REFERENCES access_codes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Singleton-Zeile (id immer 1) für globale, über /admin editierbare
+-- Gateway-Einstellungen -- aktuell nur der Spenden-Link. Wird über
+-- /v1/status an Clients ausgeliefert, die per Lizenzschlüssel laufen (siehe
+-- Plan "PayPal-Link zentral am Gateway").
+CREATE TABLE IF NOT EXISTS einstellungen (
+  id INT PRIMARY KEY,
+  spenden_link VARCHAR(255) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO einstellungen (id, spenden_link) VALUES (1, NULL);
