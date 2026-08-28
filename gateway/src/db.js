@@ -137,7 +137,18 @@ async function verbrauchProCode() {
      ORDER BY gesamt_microcent DESC`,
     [heuteStr, heuteStr, monatStr, monatStr],
   );
-  return rows;
+  // SUM() liefert intern DECIMAL, mysql2 gibt DECIMAL standardmäßig als String
+  // zurück (Präzisionsschutz) -- ohne diese Umwandlung würde z. B. admin.js'
+  // "+"-Summierung Strings aneinanderhängen statt zu addieren.
+  return rows.map((r) => ({
+    ...r,
+    heute_microcent: Number(r.heute_microcent),
+    heute_anzahl: Number(r.heute_anzahl),
+    monat_microcent: Number(r.monat_microcent),
+    monat_anzahl: Number(r.monat_anzahl),
+    gesamt_microcent: Number(r.gesamt_microcent),
+    gesamt_anzahl: Number(r.gesamt_anzahl),
+  }));
 }
 
 module.exports = {
