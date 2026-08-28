@@ -62,6 +62,33 @@ async function seite(req, res, hinweis) {
   const codes = await db.alleAccessCodes();
   const keys = await db.alleApiKeys();
   const spendenLink = await db.holeSpendenLink();
+  const verbrauch = await db.verbrauchProCode();
+
+  const gesamt = verbrauch.reduce(
+    (acc, v) => ({
+      heute_microcent: acc.heute_microcent + v.heute_microcent,
+      heute_anzahl: acc.heute_anzahl + v.heute_anzahl,
+      monat_microcent: acc.monat_microcent + v.monat_microcent,
+      monat_anzahl: acc.monat_anzahl + v.monat_anzahl,
+      gesamt_microcent: acc.gesamt_microcent + v.gesamt_microcent,
+      gesamt_anzahl: acc.gesamt_anzahl + v.gesamt_anzahl,
+    }),
+    { heute_microcent: 0, heute_anzahl: 0, monat_microcent: 0, monat_anzahl: 0, gesamt_microcent: 0, gesamt_anzahl: 0 },
+  );
+
+  const verbrauchZeilen = verbrauch
+    .map(
+      (v) => `
+    <tr>
+      <td><code>${escapeHtml(v.code)}</code></td>
+      <td>${escapeHtml(v.label || '')}</td>
+      <td>${v.aktiv ? 'aktiv' : 'gesperrt'}</td>
+      <td>${euro(v.heute_microcent)} € (${v.heute_anzahl})</td>
+      <td>${euro(v.monat_microcent)} € (${v.monat_anzahl})</td>
+      <td>${euro(v.gesamt_microcent)} € (${v.gesamt_anzahl})</td>
+    </tr>`,
+    )
+    .join('');
 
   const keyOptionen = (ausgewaehlt) =>
     ['<option value="">— Standard —</option>']
@@ -137,6 +164,22 @@ input, select { padding: 0.3rem; margin-right: 0.4rem; }
 <body>
 <h1>Lizenz-Gateway — Admin</h1>
 ${hinweis ? `<div class="hinweis">${escapeHtml(hinweis)}</div>` : ''}
+
+<h2>Verbrauch</h2>
+<table>
+<tr><th>Code</th><th>Label</th><th>Status</th><th>Heute</th><th>Diesen Monat</th><th>Insgesamt</th></tr>
+${verbrauchZeilen}
+<tr>
+  <th colspan="3">Gesamt (alle Codes)</th>
+  <th>${euro(gesamt.heute_microcent)} € (${gesamt.heute_anzahl})</th>
+  <th>${euro(gesamt.monat_microcent)} € (${gesamt.monat_anzahl})</th>
+  <th>${euro(gesamt.gesamt_microcent)} € (${gesamt.gesamt_anzahl})</th>
+</tr>
+</table>
+<p style="color:#666; font-size:0.9em;">
+  Betrag jeweils gefolgt von der Anzahl Anfragen in Klammern. Geschätzt anhand der Claude-Haiku-4.5-Preise,
+  dieselbe Rechnung wie fürs Tageslimit — kein Live-Kontostand von Anthropic selbst.
+</p>
 
 <h2>Zugangs-Codes</h2>
 <table>
